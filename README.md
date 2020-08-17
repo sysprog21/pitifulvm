@@ -20,6 +20,5 @@ $ ./jvm tests/Factorial.class
 
 ## License
 
-`PitfulVM` is released under the MIT License. Use of this source code is
-governed by a MIT License that can be found in the LICENSE file.
-
+`PitfulVM` is released under the BSD 2 clause license. Use of this source code
+is governed by a BSD-style license that can be found in the LICENSE file.
