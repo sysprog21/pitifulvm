@@ -17,3 +17,9 @@ You need to specify the full filename to the executable. For example:
 $ javac tests/Factorial.java
 $ ./jvm tests/Factorial.class
 ```
+
+## License
+
+`PitfulVM` is released under the MIT License. Use of this source code is
+governed by a MIT License that can be found in the LICENSE file.
+
