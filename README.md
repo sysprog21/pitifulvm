@@ -1,4 +1,4 @@
-# PitfulVM
+# PitifulVM
 
 A shabby implementation of Java virtual machine in C.
 
@@ -20,5 +20,5 @@ $ ./jvm tests/Factorial.class
 
 ## License
 
-`PitfulVM` is released under the BSD 2 clause license. Use of this source code
+`PitifulVM` is released under the BSD 2 clause license. Use of this source code
 is governed by a BSD-style license that can be found in the LICENSE file.

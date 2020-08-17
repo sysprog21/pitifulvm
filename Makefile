@@ -6,7 +6,7 @@ BIN = jvm
 include mk/common.mk
 include mk/jdk.mk
 
-# Build PitfulVM
+# Build PitifulVM
 all: $(BIN)
 $(BIN): $(BIN).c
 	$(VECHO) "  CC+LD\t\t$@\n"

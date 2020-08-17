@@ -1,4 +1,4 @@
-/* PitfulVM is a minimalist Java Virtual Machine implementation written in C.
+/* PitifulVM is a minimalist Java Virtual Machine implementation written in C.
  */
 
 #include <assert.h>
