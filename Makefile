@@ -2,15 +2,19 @@ CC ?= gcc
 CFLAGS = -std=c99 -Os -Wall -Wextra
 
 BIN = jvm
+OBJ = jvm.o stack.o
 
 include mk/common.mk
 include mk/jdk.mk
 
 # Build PitifulVM
 all: $(BIN)
-$(BIN): $(BIN).c
+$(BIN): $(OBJ)
 	$(VECHO) "  CC+LD\t\t$@\n"
-	$(Q)$(CC) $(CFLAGS) -o $@ $<
+	$(Q)$(CC) -o $@ $^
+
+%.o: %.c
+	$(Q)$(CC) $(CFLAGS) -c $<
 
 TESTS = \
 	Factorial \
@@ -55,5 +59,5 @@ clean:
 .PRECIOUS: %.o tests/%.class tests/%-expected.out tests/%-actual.out tests/%-result.out
 
 indent:
-	clang-format -i jvm.c
+	clang-format -i *.c *.h 
 	cloc jvm.c
