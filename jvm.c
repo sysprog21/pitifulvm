@@ -8,9 +8,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "stack.h"
+
 typedef uint8_t u1;
 typedef uint16_t u2;
 typedef uint32_t u4;
+
+typedef stack_entry_t local_variable_t;
 
 typedef struct {
     u4 magic;
@@ -442,72 +446,83 @@ void free_class(class_file_t *clazz)
     free(clazz->methods);
 }
 
-static inline void bipush(int32_t *op_stack,
-                          int32_t op_count,
+static inline void bipush(stack_frame_t *op_stack,
                           uint32_t pc,
                           uint8_t *code_buf)
 {
     int8_t param = code_buf[pc + 1];
-    op_stack[op_count] = param;
+
+    push_byte(op_stack, param);
 }
 
-static inline void sipush(int32_t *op_stack,
-                          int32_t op_count,
+static inline void sipush(stack_frame_t *op_stack,
                           uint32_t pc,
                           uint8_t *code_buf)
 {
     uint8_t param1 = code_buf[pc + 1], param2 = code_buf[pc + 2];
     int16_t res = ((param1 << 8) | param2);
-    op_stack[op_count] = res;
+
+    push_short(op_stack, res);
 }
 
-static inline void iadd(int32_t *op_stack, int32_t op_count)
+static inline void iadd(stack_frame_t *op_stack)
 {
-    int32_t op1 = op_stack[op_count - 1], op2 = op_stack[op_count - 2];
-    int32_t res = op1 + op2;
-    op_stack[op_count - 2] = res;
+    int32_t op1 = pop_int(op_stack);
+    int32_t op2 = pop_int(op_stack);
+
+    push_int(op_stack, op1 + op2);
 }
 
-static inline void isub(int32_t *op_stack, int32_t op_count)
+static inline void isub(stack_frame_t *op_stack)
 {
-    int32_t op1 = op_stack[op_count - 1], op2 = op_stack[op_count - 2];
-    op_stack[op_count - 2] = op2 - op1;
+    int32_t op1 = pop_int(op_stack);
+    int32_t op2 = pop_int(op_stack);
+
+    push_int(op_stack, op2 - op1);
 }
 
-static inline void imul(int32_t *op_stack, int32_t op_count)
+static inline void imul(stack_frame_t *op_stack)
 {
-    int32_t op1 = op_stack[op_count - 1], op2 = op_stack[op_count - 2];
-    op_stack[op_count - 2] = op2 * op1;
+    int32_t op1 = pop_int(op_stack);
+    int32_t op2 = pop_int(op_stack);
+
+    push_int(op_stack, op1 * op2);
 }
 
-static inline void idiv(int32_t *op_stack, int32_t op_count)
+static inline void idiv(stack_frame_t *op_stack)
 {
-    int32_t op1 = op_stack[op_count - 1], op2 = op_stack[op_count - 2];
-    op_stack[op_count - 2] = op2 / op1;
+    int32_t op1 = pop_int(op_stack);
+    int32_t op2 = pop_int(op_stack);
+
+    push_int(op_stack, op2 / op1);
 }
 
-static inline void irem(int32_t *op_stack, int32_t op_count)
+static inline void irem(stack_frame_t *op_stack)
 {
-    int32_t op1 = op_stack[op_count - 1], op2 = op_stack[op_count - 2];
-    op_stack[op_count - 2] = op2 % op1;
+    int32_t op1 = pop_int(op_stack);
+    int32_t op2 = pop_int(op_stack);
+
+    push_int(op_stack, op2 % op1);
 }
 
-static inline void ineg(int32_t *op_stack, int32_t op_count)
+static inline void ineg(stack_frame_t *op_stack)
 {
-    int32_t op1 = op_stack[op_count - 1];
-    op_stack[op_count - 1] = -1 * op1;
+    int32_t op1 = pop_int(op_stack);
+
+    push_int(op_stack, -op1);
 }
 
-static inline void invokevirtual(int32_t *op_stack, int32_t op_count)
+static inline void invokevirtual(stack_frame_t *op_stack)
 {
-    int32_t op = op_stack[op_count - 1];
+    int32_t op = pop_int(op_stack);
+
     /* FIXME: the implement is not correct. */
     printf("%d\n", op);
 }
 
-static inline void iconst(int32_t *op_stack, int32_t op_count, uint8_t current)
+static inline void iconst(stack_frame_t *op_stack, uint8_t current)
 {
-    op_stack[op_count] = current - i_iconst_0;
+    push_int(op_stack, current - i_iconst_0);
 }
 
 /**
@@ -520,12 +535,13 @@ static inline void iconst(int32_t *op_stack, int32_t op_count, uint8_t current)
  * @return if the method returns an int, a heap-allocated pointer to it;
  *         NULL if the method returns void, NULL;
  */
-int32_t *execute(method_t *method, int32_t *locals, class_file_t *clazz)
+int32_t *execute(method_t *method,
+                 local_variable_t *locals,
+                 class_file_t *clazz)
 {
     code_t code = method->code;
-    int32_t op_stack[code.max_stack];
-
-    uint32_t op_count = 0;
+    stack_frame_t *op_stack = malloc(sizeof(stack_frame_t));
+    init_stack(op_stack, code.max_stack);
 
     /* position at the program to be run */
     uint32_t pc = 0;
@@ -543,7 +559,7 @@ int32_t *execute(method_t *method, int32_t *locals, class_file_t *clazz)
         /* Return int from method */
         case i_ireturn: {
             int32_t *ret = malloc(sizeof(int32_t));
-            *ret = op_stack[op_count - 1];
+            *ret = pop_int(op_stack);
             return ret;
         } break;
 
@@ -559,17 +575,14 @@ int32_t *execute(method_t *method, int32_t *locals, class_file_t *clazz)
             /* the method to be called */
             method_t *own_method = find_method_from_index(index, clazz);
             uint16_t num_params = get_number_of_parameters(own_method);
-            int32_t own_locals[own_method->code.max_locals];
-
+            local_variable_t own_locals[own_method->code.max_locals];
             for (int i = num_params - 1; i >= 0; i--) {
-                own_locals[i] = op_stack[op_count - 1];
-                op_count -= 1;
+                pop_to_local(op_stack, &own_locals[i]);
             }
 
             int32_t *exec_res = execute(own_method, own_locals, clazz);
             if (exec_res) {
-                op_stack[op_count] = *exec_res;
-                op_count += 1;
+                push_int(op_stack, *exec_res);
             }
 
             free(exec_res);
@@ -579,145 +592,133 @@ int32_t *execute(method_t *method, int32_t *locals, class_file_t *clazz)
         /* Branch if int comparison with zero succeeds: if equals */
         case i_ifeq: {
             uint8_t param1 = code_buf[pc + 1], param2 = code_buf[pc + 2];
-            int32_t conditional = op_stack[op_count - 1];
+            int32_t conditional = pop_int(op_stack);
             pc += 3;
             if (conditional == 0) {
                 int16_t res = ((param1 << 8) | param2);
                 pc += res - 3;
             }
-            op_count -= 1;
         } break;
 
         /* Branch if int comparison with zero succeeds: if not equals */
         case i_ifne: {
             uint8_t param1 = code_buf[pc + 1], param2 = code_buf[pc + 2];
-            int32_t conditional = op_stack[op_count - 1];
+            int32_t conditional = pop_int(op_stack);
             pc += 3;
             if (conditional != 0) {
                 int16_t res = ((param1 << 8) | param2);
                 pc += res - 3;
             }
-            op_count -= 1;
         } break;
 
         /* Branch if int comparison with zero succeeds: if less than 0 */
         case i_iflt: {
             uint8_t param1 = code_buf[pc + 1], param2 = code_buf[pc + 2];
-            int32_t conditional = op_stack[op_count - 1];
+            int32_t conditional = pop_int(op_stack);
             pc += 3;
             if (conditional < 0) {
                 int16_t res = ((param1 << 8) | param2);
                 pc += res - 3;
             }
-            op_count -= 1;
         } break;
 
         /* Branch if int comparison with zero succeeds: if >= 0 */
         case i_ifge: {
             uint8_t param1 = code_buf[pc + 1], param2 = code_buf[pc + 2];
-            int32_t conditional = op_stack[op_count - 1];
+            int32_t conditional = pop_int(op_stack);
             pc += 3;
             if (conditional >= 0) {
                 int16_t res = ((param1 << 8) | param2);
                 pc += res - 3;
             }
-            op_count -= 1;
         } break;
 
         /* Branch if int comparison with zero succeeds: if greater than 0 */
         case i_ifgt: {
             uint8_t param1 = code_buf[pc + 1], param2 = code_buf[pc + 2];
-            int32_t conditional = op_stack[op_count - 1];
+            int32_t conditional = pop_int(op_stack);
             pc += 3;
             if (conditional > 0) {
                 int16_t res = ((param1 << 8) | param2);
                 pc += res - 3;
             }
-            op_count -= 1;
         } break;
 
         /* Branch if int comparison with zero succeeds: if <= 0 */
         case i_ifle: {
             uint8_t param1 = code_buf[pc + 1], param2 = code_buf[pc + 2];
-            int32_t conditional = op_stack[op_count - 1];
+            int32_t conditional = pop_int(op_stack);
             pc += 3;
             if (conditional <= 0) {
                 int16_t res = ((param1 << 8) | param2);
                 pc += res - 3;
             }
-            op_count -= 1;
         } break;
 
         /* Branch if int comparison succeeds: if equals */
         case i_if_icmpeq: {
             uint8_t param1 = code_buf[pc + 1], param2 = code_buf[pc + 2];
-            int32_t op1 = op_stack[op_count - 1], op2 = op_stack[op_count - 2];
+            int32_t op1 = pop_int(op_stack), op2 = pop_int(op_stack);
             pc += 3;
             if (op2 == op1) {
                 int16_t res = ((param1 << 8) | param2);
                 pc += res - 3;
             }
-            op_count -= 2;
         } break;
 
         /* Branch if int comparison succeeds: if not equals */
         case i_if_icmpne: {
             uint8_t param1 = code_buf[pc + 1], param2 = code_buf[pc + 2];
-            int32_t op1 = op_stack[op_count - 1], op2 = op_stack[op_count - 2];
+            int32_t op1 = pop_int(op_stack), op2 = pop_int(op_stack);
             pc += 3;
             if (op2 != op1) {
                 int16_t res = ((param1 << 8) | param2);
                 pc += res - 3;
             }
-            op_count -= 2;
         } break;
 
         /* Branch if int comparison succeeds: if less than */
         case i_if_icmplt: {
             uint8_t param1 = code_buf[pc + 1], param2 = code_buf[pc + 2];
-            int32_t op1 = op_stack[op_count - 1], op2 = op_stack[op_count - 2];
+            int32_t op1 = pop_int(op_stack), op2 = pop_int(op_stack);
             pc += 3;
             if (op2 < op1) {
                 int16_t res = ((param1 << 8) | param2);
                 pc += res - 3;
             }
-            op_count -= 2;
         } break;
 
         /* Branch if int comparison succeeds: if greater than or equal to */
         case i_if_icmpge: {
             uint8_t param1 = code_buf[pc + 1], param2 = code_buf[pc + 2];
-            int32_t op1 = op_stack[op_count - 1], op2 = op_stack[op_count - 2];
+            int32_t op1 = pop_int(op_stack), op2 = pop_int(op_stack);
             pc += 3;
             if (op2 >= op1) {
                 int16_t res = ((param1 << 8) | param2);
                 pc += res - 3;
             }
-            op_count -= 2;
         } break;
 
         /* Branch if int comparison succeeds: if greater than */
         case i_if_icmpgt: {
             uint8_t param1 = code_buf[pc + 1], param2 = code_buf[pc + 2];
-            int32_t op1 = op_stack[op_count - 1], op2 = op_stack[op_count - 2];
+            int32_t op1 = pop_int(op_stack), op2 = pop_int(op_stack);
             pc += 3;
             if (op2 > op1) {
                 int16_t res = ((param1 << 8) | param2);
                 pc += res - 3;
             }
-            op_count -= 2;
         } break;
 
         /* Branch if int comparison succeeds: if less than or equal to */
         case i_if_icmple: {
             uint8_t param1 = code_buf[pc + 1], param2 = code_buf[pc + 2];
-            int32_t op1 = op_stack[op_count - 1], op2 = op_stack[op_count - 2];
+            int32_t op1 = pop_int(op_stack), op2 = pop_int(op_stack);
             pc += 3;
             if (op2 <= op1) {
                 int16_t res = ((param1 << 8) | param2);
                 pc += res - 3;
             }
-            op_count -= 2;
         } break;
 
         /* Branch always */
@@ -738,9 +739,10 @@ int32_t *execute(method_t *method, int32_t *locals, class_file_t *clazz)
 
             /* get the constant */
             uint8_t *info = get_constant(&constant_pool, param)->info;
-            op_stack[op_count] = ((CONSTANT_Integer_info *) info)->bytes;
+
+            /* need to check type */
+            push_int(op_stack, ((CONSTANT_Integer_info *) info)->bytes);
             pc += 2;
-            op_count += 1;
         } break;
 
         /* Load int from local variable */
@@ -749,28 +751,31 @@ int32_t *execute(method_t *method, int32_t *locals, class_file_t *clazz)
         case i_iload_2:
         case i_iload_3: {
             int32_t param = current - i_iload_0;
-            int32_t loaded = locals[param];
-            op_stack[op_count] = loaded;
+            int32_t loaded;
+
+            loaded = locals[param].entry.int_value;
+            push_int(op_stack, loaded);
             pc += 1;
-            op_count += 1;
         } break;
 
         /* Load int from local variable */
         case i_iload: {
             int32_t param = code_buf[pc + 1];
-            int32_t loaded = locals[param];
-            op_stack[op_count] = loaded;
+            int32_t loaded;
+
+            loaded = locals[param].entry.int_value;
+            push_int(op_stack, loaded);
+
             pc += 2;
-            op_count += 1;
         } break;
 
         /* Store int into local variable */
         case i_istore: {
             int32_t param = code_buf[pc + 1];
-            int32_t stored = op_stack[op_count - 1];
-            locals[param] = stored;
+            int32_t stored = pop_int(op_stack);
+            locals[param].entry.int_value = stored;
+            locals[param].type = STACK_ENTRY_INT;
             pc += 2;
-            op_count -= 1;
         } break;
 
         /* Store int into local variable */
@@ -779,65 +784,60 @@ int32_t *execute(method_t *method, int32_t *locals, class_file_t *clazz)
         case i_istore_2:
         case i_istore_3: {
             int32_t param = current - i_istore_0;
-            int32_t stored = op_stack[op_count - 1];
-            locals[param] = stored;
+            int32_t stored = pop_int(op_stack);
+            locals[param].entry.int_value = stored;
+            locals[param].type = STACK_ENTRY_INT;
             pc += 1;
-            op_count -= 1;
         } break;
 
         /* Increment local variable by constant */
         case i_iinc: {
             uint8_t i = code_buf[pc + 1];
             int8_t b = code_buf[pc + 2]; /* signed value */
-            locals[i] += b;
+            locals[i].entry.int_value += b;
             pc += 3;
         } break;
 
+
         /* Push byte */
         case i_bipush: {
-            bipush(op_stack, op_count, pc, code_buf);
-            op_count += 1;
+            bipush(op_stack, pc, code_buf);
             pc += 2;
         } break;
 
         /* Add int */
         case i_iadd: {
-            iadd(op_stack, op_count);
-            op_count -= 1;
+            iadd(op_stack);
             pc += 1;
         } break;
 
         /* Subtract int */
         case i_isub: {
-            isub(op_stack, op_count);
-            op_count -= 1;
+            isub(op_stack);
             pc += 1;
         } break;
 
         /* Multiply int */
         case i_imul: {
-            imul(op_stack, op_count);
-            op_count -= 1;
+            imul(op_stack);
             pc += 1;
         } break;
 
         /* Divide int */
         case i_idiv: {
-            idiv(op_stack, op_count);
-            op_count -= 1;
+            idiv(op_stack);
             pc += 1;
         } break;
 
         /* Remainder int */
         case i_irem: {
-            irem(op_stack, op_count);
-            op_count -= 1;
+            irem(op_stack);
             pc += 1;
         } break;
 
         /* Negate int */
         case i_ineg: {
-            ineg(op_stack, op_count);
+            ineg(op_stack);
             pc += 1;
         } break;
 
@@ -849,8 +849,7 @@ int32_t *execute(method_t *method, int32_t *locals, class_file_t *clazz)
 
         /* Invoke instance method; dispatch based on class */
         case i_invokevirtual: {
-            invokevirtual(op_stack, op_count);
-            op_count -= 1;
+            invokevirtual(op_stack);
             pc += 3;
         } break;
 
@@ -862,15 +861,13 @@ int32_t *execute(method_t *method, int32_t *locals, class_file_t *clazz)
         case i_iconst_3:
         case i_iconst_4:
         case i_iconst_5: {
-            iconst(op_stack, op_count, current);
-            op_count += 1;
+            iconst(op_stack, current);
             pc += 1;
         } break;
 
         /* Push short */
         case i_sipush: {
-            sipush(op_stack, op_count, pc, code_buf);
-            op_count += 1;
+            sipush(op_stack, pc, code_buf);
             pc += 3;
         } break;
         }
@@ -900,7 +897,7 @@ int main(int argc, char *argv[])
     /* FIXME: locals[0] contains a reference to String[] args, but right now
      * we lack of the support for java.lang.Object. Leave it uninitialized.
      */
-    int32_t locals[main_method->code.max_locals];
+    local_variable_t locals[main_method->code.max_locals];
     int32_t *result = execute(main_method, locals, &clazz);
     assert(!result && "main() should return void");
 
