@@ -45,6 +45,11 @@ typedef struct {
     method_t *methods;
 } class_file_t;
 
+typedef struct {
+    class_file_t *clazz;
+    char *name;
+} meta_class_t;
+
 class_header_t get_class_header(FILE *class_file);
 class_info_t get_class_info(FILE *class_file);
 method_t *get_methods(FILE *class_file, constant_pool_t *cp);
@@ -56,4 +61,3 @@ uint16_t get_number_of_parameters(method_t *method);
 method_t *find_method(const char *name, const char *desc, class_file_t *clazz);
 method_t *find_method_from_index(uint16_t idx, class_file_t *clazz);
 class_file_t get_class(FILE *class_file);
-void free_class(class_file_t *clazz);

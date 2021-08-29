@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "class-heap.h"
 #include "classfile.h"
 #include "constant-pool.h"
 #include "stack.h"
@@ -81,6 +82,9 @@ typedef enum {
     i_invokevirtual = 0xb6,
     i_invokestatic = 0xb8,
 } jvm_opcode_t;
+
+/* TODO: add -cp arg to achieve class path select */
+static char *prefix = NULL;
 
 static inline void bipush(stack_frame_t *op_stack,
                           uint32_t pc,
@@ -234,13 +238,61 @@ stack_entry_t *execute(method_t *method,
             uint16_t index = ((param1 << 8) | param2);
 
             /* the method to be called */
-            method_t *own_method = find_method_from_index(index, clazz);
+            char *method_name, *method_descriptor, *class_name;
+            class_name = find_method_info_from_index(index, clazz, &method_name,
+                                                     &method_descriptor);
+            class_file_t *target_class = find_class_from_heap(class_name);
+
+            /* if class is not found, adding specific class path and finding
+             * again. This can be removed by recording path infomation in class
+             * heap
+             */
+            if (!target_class && prefix) {
+                char *tmp = malloc(strlen(class_name) + strlen(prefix) + 1);
+                strcpy(tmp, prefix);
+                strcat(tmp, class_name);
+                target_class = find_class_from_heap(tmp);
+
+                free(tmp);
+            }
+
+            /* if class is still not found, meaning that this class is not
+             * loaded in class heap, so add it to the class heap. */
+            if (!target_class) {
+                char *tmp;
+                if (prefix) {
+                    tmp = malloc((strlen(class_name) + strlen(".class") +
+                                  strlen(prefix) + 1));
+                    strcpy(tmp, prefix);
+                    strcat(tmp, class_name);
+                } else {
+                    tmp = malloc(strlen(class_name) + strlen(".class") + 1);
+                    strcpy(tmp, class_name);
+                }
+                /* attempt to read given class file */
+                FILE *class_file = fopen(strcat(tmp, ".class"), "r");
+                assert(class_file && "Failed to open file");
+
+                /* parse the class file */
+                target_class = malloc(sizeof(class_file_t));
+                *target_class = get_class(class_file);
+                int error = fclose(class_file);
+                assert(!error && "Failed to close file");
+                add_class(target_class, tmp);
+                free(tmp);
+            }
+
+            assert(target_class && "Failed to load class in invokestatic");
+
+            method_t *own_method =
+                find_method(method_name, method_descriptor, target_class);
             uint16_t num_params = get_number_of_parameters(own_method);
             local_variable_t own_locals[own_method->code.max_locals];
             for (int i = num_params - 1; i >= 0; i--)
                 pop_to_local(op_stack, &own_locals[i]);
 
-            stack_entry_t *exec_res = execute(own_method, own_locals, clazz);
+            stack_entry_t *exec_res =
+                execute(own_method, own_locals, target_class);
             switch (exec_res->type) {
             case STACK_ENTRY_INT:
                 push_int(op_stack, exec_res->entry.int_value);
@@ -743,24 +795,38 @@ int main(int argc, char *argv[])
     assert(class_file && "Failed to open file");
 
     /* parse the class file */
-    class_file_t clazz = get_class(class_file);
+    class_file_t *clazz = malloc(sizeof(class_file_t));
+    *clazz = get_class(class_file);
+
     int error = fclose(class_file);
     assert(!error && "Failed to close file");
 
+    init_class_heap();
+
+    add_class(clazz, argv[1]);
+    char *match = strrchr(argv[1], '/');
+    if (match != NULL) {
+        /* get the prefix from path */
+        prefix = malloc((match - argv[1] + 2));
+        strncpy(prefix, argv[1], match - argv[1] + 1);
+        prefix[match - argv[1] + 1] = '\0';
+    }
+
     /* execute the main method if found */
     method_t *main_method =
-        find_method("main", "([Ljava/lang/String;)V", &clazz);
+        find_method("main", "([Ljava/lang/String;)V", clazz);
     assert(main_method && "Missing main() method");
 
     /* FIXME: locals[0] contains a reference to String[] args, but right now
      * we lack of the support for java.lang.Object. Leave it uninitialized.
      */
     local_variable_t locals[main_method->code.max_locals];
-    stack_entry_t *result = execute(main_method, locals, &clazz);
+    stack_entry_t *result = execute(main_method, locals, clazz);
     assert(result->type == STACK_ENTRY_NONE && "main() should return void");
     free(result);
 
-    free_class(&clazz);
+    free_class_heap();
+    free(prefix);
 
     return 0;
 }

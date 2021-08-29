@@ -55,6 +55,6 @@ u1 read_u1(FILE *class_file);
 u2 read_u2(FILE *class_file);
 u4 read_u4(FILE *class_file);
 const_pool_info *get_constant(constant_pool_t *constant_pool, u2 index);
-CONSTANT_NameAndType_info *get_method_name_and_type(constant_pool_t *cp,
-                                                    u2 idx);
 constant_pool_t get_constant_pool(FILE *class_file);
+CONSTANT_FieldOrMethodRef_info *get_methodref(constant_pool_t *cp, u2 idx);
+CONSTANT_Class_info *get_class_name(constant_pool_t *cp, u2 idx);
