@@ -44,8 +44,9 @@ TESTS = \
 	Primes \
 	Recursion \
 	Long \
-	Caller
-
+	Caller \
+	Constructor
+	
 check: $(addprefix tests/,$(TESTS:=-result.out))
 
 ifneq (, $(shell which valgrind))

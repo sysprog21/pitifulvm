@@ -11,6 +11,7 @@ void init_class_heap();
 void free_class_heap();
 void add_class(class_file_t *clazz, char *name);
 class_file_t *find_class_from_heap(char *value);
+class_file_t *find_or_add_class_to_heap(char *class_name, char *prefix);
 char *find_method_info_from_index(uint16_t idx,
                                   class_file_t *clazz,
                                   char **name_info,

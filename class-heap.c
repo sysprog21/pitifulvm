@@ -35,6 +35,52 @@ class_file_t *find_class_from_heap(char *value)
     return NULL;
 }
 
+class_file_t *find_or_add_class_to_heap(char *class_name, char *prefix)
+{
+    class_file_t *target_class = find_class_from_heap(class_name);
+
+    /* if class is not found, adding specific class path and finding
+     * again. This can be removed by recording path infomation in class
+     * heap
+     */
+    if (!target_class && prefix) {
+        char *tmp = malloc(strlen(class_name) + strlen(prefix) + 1);
+        strcpy(tmp, prefix);
+        strcat(tmp, class_name);
+        target_class = find_class_from_heap(tmp);
+
+        free(tmp);
+    }
+
+    /* if class is still not found, meaning that this class is not
+     * loaded in class heap, so add it to the class heap. */
+    if (!target_class) {
+        char *tmp;
+        if (prefix) {
+            tmp = malloc(
+                (strlen(class_name) + strlen(".class") + strlen(prefix) + 1));
+            strcpy(tmp, prefix);
+            strcat(tmp, class_name);
+        } else {
+            tmp = malloc(strlen(class_name) + strlen(".class") + 1);
+            strcpy(tmp, class_name);
+        }
+        /* attempt to read given class file */
+        FILE *class_file = fopen(strcat(tmp, ".class"), "r");
+        assert(class_file && "Failed to open file");
+
+        /* parse the class file */
+        target_class = malloc(sizeof(class_file_t));
+        *target_class = get_class(class_file);
+        int error = fclose(class_file);
+        assert(!error && "Failed to close file");
+        add_class(target_class, tmp);
+        free(tmp);
+    }
+
+    return target_class;
+}
+
 void free_class_heap()
 {
     for (int i = 0; i < class_heap.length; ++i) {

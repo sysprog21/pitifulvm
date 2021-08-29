@@ -30,6 +30,7 @@ typedef enum {
     i_ldc2_w = 0x14,
     i_iload = 0x15,
     i_lload = 0x16,
+    i_aload = 0x19,
     i_iload_0 = 0x1a,
     i_iload_1 = 0x1b,
     i_iload_2 = 0x1c,
@@ -38,8 +39,13 @@ typedef enum {
     i_lload_1 = 0x1f,
     i_lload_2 = 0x20,
     i_lload_3 = 0x21,
+    i_aload_0 = 0x2a,
+    i_aload_1 = 0x2b,
+    i_aload_2 = 0x2c,
+    i_aload_3 = 0x2d,
     i_istore = 0x36,
     i_lstore = 0x37,
+    i_astore = 0x3a,
     i_istore_0 = 0x3b,
     i_istore_1 = 0x3c,
     i_istore_2 = 0x3d,
@@ -48,6 +54,12 @@ typedef enum {
     i_lstore_1 = 0x40,
     i_lstore_2 = 0x41,
     i_lstore_3 = 0x42,
+    i_astore_0 = 0x4b,
+    i_astore_1 = 0x4c,
+    i_astore_2 = 0x4d,
+    i_astore_3 = 0x4e,
+    i_pop = 0x57,
+    i_dup = 0x59,
     i_iadd = 0x60,
     i_ladd = 0x61,
     i_isub = 0x64,
@@ -78,10 +90,13 @@ typedef enum {
     i_goto = 0xa7,
     i_ireturn = 0xac,
     i_lreturn = 0xad,
+    i_areturn = 0xb0,
     i_return = 0xb1,
     i_getstatic = 0xb2,
     i_invokevirtual = 0xb6,
+    i_invokespecial = 0xb7,
     i_invokestatic = 0xb8,
+    i_new = 0xbb,
 } jvm_opcode_t;
 
 /* TODO: add -cp arg to achieve class path select */
@@ -222,6 +237,18 @@ stack_entry_t *execute(method_t *method,
             return ret;
         }
 
+        /* Return long from method */
+        case i_areturn: {
+            stack_entry_t *ret = malloc(sizeof(stack_entry_t));
+            ret->entry.ptr_value = pop_ref(op_stack);
+            ret->type = STACK_ENTRY_REF;
+
+            free(op_stack->store);
+            free(op_stack);
+
+            return ret;
+        }
+
         /* Return void from method */
         case i_return: {
             stack_entry_t *ret = malloc(sizeof(stack_entry_t));
@@ -242,47 +269,9 @@ stack_entry_t *execute(method_t *method,
             char *method_name, *method_descriptor, *class_name;
             class_name = find_method_info_from_index(index, clazz, &method_name,
                                                      &method_descriptor);
-            class_file_t *target_class = find_class_from_heap(class_name);
 
-            /* if class is not found, adding specific class path and finding
-             * again. This can be removed by recording path infomation in class
-             * heap
-             */
-            if (!target_class && prefix) {
-                char *tmp = malloc(strlen(class_name) + strlen(prefix) + 1);
-                strcpy(tmp, prefix);
-                strcat(tmp, class_name);
-                target_class = find_class_from_heap(tmp);
-
-                free(tmp);
-            }
-
-            /* if class is still not found, meaning that this class is not
-             * loaded in class heap, so add it to the class heap. */
-            if (!target_class) {
-                char *tmp;
-                if (prefix) {
-                    tmp = malloc((strlen(class_name) + strlen(".class") +
-                                  strlen(prefix) + 1));
-                    strcpy(tmp, prefix);
-                    strcat(tmp, class_name);
-                } else {
-                    tmp = malloc(strlen(class_name) + strlen(".class") + 1);
-                    strcpy(tmp, class_name);
-                }
-                /* attempt to read given class file */
-                FILE *class_file = fopen(strcat(tmp, ".class"), "r");
-                assert(class_file && "Failed to open file");
-
-                /* parse the class file */
-                target_class = malloc(sizeof(class_file_t));
-                *target_class = get_class(class_file);
-                int error = fclose(class_file);
-                assert(!error && "Failed to close file");
-                add_class(target_class, tmp);
-                free(tmp);
-            }
-
+            class_file_t *target_class =
+                find_or_add_class_to_heap(class_name, prefix);
             assert(target_class && "Failed to load class in invokestatic");
 
             method_t *own_method =
@@ -300,6 +289,9 @@ stack_entry_t *execute(method_t *method,
                 break;
             case STACK_ENTRY_LONG:
                 push_long(op_stack, exec_res->entry.long_value);
+                break;
+            case STACK_ENTRY_REF:
+                push_ref(op_stack, exec_res->entry.ptr_value);
                 break;
             case STACK_ENTRY_NONE:
                 /* nothing */
@@ -547,6 +539,18 @@ stack_entry_t *execute(method_t *method,
             break;
         }
 
+        /* Load object from local variable */
+        case i_aload_0:
+        case i_aload_1:
+        case i_aload_2:
+        case i_aload_3: {
+            int32_t param = current - i_aload_0;
+            object_t *obj = locals[param].entry.ptr_value;
+            push_ref(op_stack, obj);
+            pc += 1;
+            break;
+        }
+
         /* Load int from local variable */
         case i_iload_0:
         case i_iload_1:
@@ -584,6 +588,15 @@ stack_entry_t *execute(method_t *method,
             break;
         }
 
+        /* Store object from local variable */
+        case i_astore: {
+            int32_t param = code_buf[pc + 1];
+            locals[param].entry.ptr_value = pop_ref(op_stack);
+            locals[param].type = STACK_ENTRY_REF;
+            pc += 2;
+            break;
+        }
+
         /* Store long into local variable */
         case i_lstore_0:
         case i_lstore_1:
@@ -617,6 +630,34 @@ stack_entry_t *execute(method_t *method,
             int32_t stored = pop_int(op_stack);
             locals[param].entry.int_value = stored;
             locals[param].type = STACK_ENTRY_INT;
+            pc += 1;
+            break;
+        }
+
+        /* Store object from local variable */
+        case i_astore_0:
+        case i_astore_1:
+        case i_astore_2:
+        case i_astore_3: {
+            int32_t param = current - i_astore_0;
+            locals[param].entry.ptr_value = pop_ref(op_stack);
+            locals[param].type = STACK_ENTRY_REF;
+            pc += 1;
+            break;
+        }
+
+        /* discard the top value on the stack */
+        case i_pop: {
+            op_stack->size--;
+            pc += 1;
+            break;
+        }
+
+        /* duplicate the value on top of the stack */
+        case i_dup: {
+            op_stack->store[op_stack->size] =
+                op_stack->store[op_stack->size - 1];
+            op_stack->size++;
             pc += 1;
             break;
         }
@@ -777,6 +818,71 @@ stack_entry_t *execute(method_t *method,
             sipush(op_stack, pc, code_buf);
             pc += 3;
             break;
+
+        /* create new object */
+        case i_new: {
+            uint8_t param1 = code_buf[pc + 1], param2 = code_buf[pc + 2];
+            uint16_t index = ((param1 << 8) | param2);
+
+            char *class_name = find_class_name_from_index(index, clazz);
+            class_file_t *target_class =
+                find_or_add_class_to_heap(class_name, prefix);
+            assert(target_class && "Failed to load class in new");
+
+            object_t *object = create_object(target_class);
+            push_ref(op_stack, object);
+
+            pc += 3;
+            break;
+        }
+
+        /* Invoke object constructor method */
+        case i_invokespecial: {
+            uint8_t param1 = code_buf[pc + 1], param2 = code_buf[pc + 2];
+            uint16_t index = ((param1 << 8) | param2);
+
+            /* the method to be called */
+            char *method_name, *method_descriptor, *class_name;
+            class_name = find_method_info_from_index(index, clazz, &method_name,
+                                                     &method_descriptor);
+
+            /* java.lang.Object is the parent for every object, so every object
+             * will finally call java.lang.Object's constructor */
+            if (!strcmp(class_name, "java/lang/Object")) {
+                pop_ref(op_stack);
+                pc += 3;
+                break;
+            }
+
+            class_file_t *target_class =
+                find_or_add_class_to_heap(class_name, prefix);
+            assert(target_class && "Failed to load class in i_invokespecial");
+
+            /* find constructor method from class */
+            method_t *constructor =
+                find_method(method_name, method_descriptor, target_class);
+
+            /* prepare local variables */
+            uint16_t num_params = get_number_of_parameters(constructor);
+            local_variable_t own_locals[constructor->code.max_locals];
+            for (int i = num_params; i >= 1; i--) {
+                pop_to_local(op_stack, &own_locals[i]);
+            }
+
+            /* first argument must be object itself */
+            object_t *obj = pop_ref(op_stack);
+            own_locals[0].entry.ptr_value = obj;
+            own_locals[0].type = STACK_ENTRY_REF;
+
+            stack_entry_t *exec_res =
+                execute(constructor, own_locals, target_class);
+            assert(exec_res->type == STACK_ENTRY_NONE &&
+                   "A constructor must not return a value.");
+            free(exec_res);
+
+            pc += 3;
+            break;
+        }
 
         default:
             fprintf(stderr, "Unknown instruction %x\n", current);
