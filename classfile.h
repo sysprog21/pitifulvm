@@ -23,6 +23,13 @@ typedef struct {
 } method_info;
 
 typedef struct {
+    u2 access_flags;
+    u2 name_index;
+    u2 descriptor_index;
+    u2 attributes_count;
+} field_info;
+
+typedef struct {
     u2 attribute_name_index;
     u4 attribute_length;
 } attribute_info;
@@ -41,8 +48,16 @@ typedef struct {
 } method_t;
 
 typedef struct {
+    char *class_name;
+    char *name;
+    char *descriptor;
+} field_t;
+
+typedef struct {
     constant_pool_t constant_pool;
     method_t *methods;
+    field_t *fields;
+    u2 fields_count;
 } class_file_t;
 
 typedef struct {
@@ -61,3 +76,11 @@ uint16_t get_number_of_parameters(method_t *method);
 method_t *find_method(const char *name, const char *desc, class_file_t *clazz);
 method_t *find_method_from_index(uint16_t idx, class_file_t *clazz);
 class_file_t get_class(FILE *class_file);
+char *find_class_name_from_index(uint16_t idx, class_file_t *clazz);
+CONSTANT_FieldOrMethodRef_info *get_fieldref(constant_pool_t *cp, u2 idx);
+char *find_field_info_from_index(uint16_t idx,
+                                 class_file_t *clazz,
+                                 char **name_info,
+                                 char **descriptor_info);
+void read_field_attributes(FILE *class_file, field_info *info);
+field_t *get_fields(FILE *class_file, constant_pool_t *cp, class_file_t *clazz);

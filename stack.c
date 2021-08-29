@@ -37,7 +37,7 @@ void push_long(stack_frame_t *stack, int64_t value)
 }
 
 /* pop top of stack value and convert to 64 bits integer */
-int64_t stack_to_int(stack_value_t *entry, size_t size)
+int64_t stack_to_int(value_t *entry, size_t size)
 {
     switch (size) {
     /* int8_t */

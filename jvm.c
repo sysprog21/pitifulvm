@@ -11,6 +11,7 @@
 #include "class-heap.h"
 #include "classfile.h"
 #include "constant-pool.h"
+#include "object-heap.h"
 #include "stack.h"
 
 typedef enum {
@@ -802,6 +803,7 @@ int main(int argc, char *argv[])
     assert(!error && "Failed to close file");
 
     init_class_heap();
+    init_object_heap();
 
     add_class(clazz, argv[1]);
     char *match = strrchr(argv[1], '/');
@@ -825,6 +827,7 @@ int main(int argc, char *argv[])
     assert(result->type == STACK_ENTRY_NONE && "main() should return void");
     free(result);
 
+    free_object_heap();
     free_class_heap();
     free(prefix);
 

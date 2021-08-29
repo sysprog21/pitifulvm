@@ -45,6 +45,7 @@ void free_class_heap()
             free(constant->info);
         }
         free(class_heap.class_info[i]->clazz->constant_pool.constant_pool);
+        free(class_heap.class_info[i]->clazz->fields);
 
         for (method_t *method = class_heap.class_info[i]->clazz->methods;
              method->name; method++) {

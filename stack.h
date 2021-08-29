@@ -20,16 +20,8 @@ typedef enum {
     STACK_ENTRY_FLOAT
 } stack_entry_type_t;
 
-typedef union {
-    u1 char_value;
-    u2 short_value;
-    u4 int_value;
-    u8 long_value;
-    void *ptr_value;
-} stack_value_t;
-
 typedef struct {
-    stack_value_t entry;
+    value_t entry;
     stack_entry_type_t type;
 } stack_entry_t;
 
@@ -49,4 +41,4 @@ void push_long(stack_frame_t *stack, int64_t value);
 int64_t pop_int(stack_frame_t *stack);
 void pop_to_local(stack_frame_t *stack, local_variable_t *locals);
 size_t get_type_size(stack_entry_type_t type);
-int64_t stack_to_int(stack_value_t *entry, size_t size);
+int64_t stack_to_int(value_t *entry, size_t size);
