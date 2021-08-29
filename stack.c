@@ -43,6 +43,11 @@ void push_ref(stack_frame_t *stack, void *addr)
     stack->size++;
 }
 
+stack_entry_t top(stack_frame_t *stack)
+{
+    return stack->store[stack->size - 1];
+}
+
 /* pop top of stack value and convert to 64 bits integer */
 int64_t stack_to_int(value_t *entry, size_t size)
 {

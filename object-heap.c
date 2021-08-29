@@ -26,6 +26,18 @@ object_t *create_object(class_file_t *clazz)
     return new_obj;
 }
 
+variable_t *find_field_addr(object_t *obj, char *name)
+{
+    field_t *field = obj->class->fields;
+    for (u2 i = 0; i < obj->class->fields_count; i++, field++) {
+        if (!strcmp(field->name, name)) {
+            return &obj->value[i];
+        }
+    }
+    assert(0 && "Can't find field in the object");
+    return NULL;
+}
+
 void free_object_heap()
 {
     for (int i = 0; i < object_heap.length; ++i) {
