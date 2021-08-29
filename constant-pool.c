@@ -79,6 +79,18 @@ constant_pool_t get_constant_pool(FILE *class_file)
             break;
         }
 
+        case CONSTANT_Long: {
+            CONSTANT_LongOrDouble_info *value = malloc(sizeof(*value));
+            assert(value && "Failed to allocate long constant");
+            value->high_bytes = read_u4(class_file);
+            value->low_bytes = read_u4(class_file);
+            constant->info = (u1 *) value;
+            constant++;
+            constant->info = NULL;
+            i++;
+            break;
+        }
+
         case CONSTANT_Class: {
             CONSTANT_Class_info *value = malloc(sizeof(*value));
             assert(value && "Failed to allocate class constant");

@@ -36,7 +36,8 @@ TESTS = \
 	Jumps \
 	PalindromeProduct \
 	Primes \
-	Recursion
+	Recursion \
+	Long
 
 check: $(addprefix tests/,$(TESTS:=-result.out))
 

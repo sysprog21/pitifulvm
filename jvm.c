@@ -20,26 +20,47 @@ typedef enum {
     i_iconst_3 = 0x6,
     i_iconst_4 = 0x7,
     i_iconst_5 = 0x8,
+    i_lconst_0 = 0x9,
+    i_lconst_1 = 0xa,
     i_bipush = 0x10,
     i_sipush = 0x11,
     i_ldc = 0x12,
+    i_ldc2_w = 0x14,
     i_iload = 0x15,
+    i_lload = 0x16,
     i_iload_0 = 0x1a,
     i_iload_1 = 0x1b,
     i_iload_2 = 0x1c,
     i_iload_3 = 0x1d,
+    i_lload_0 = 0x1e,
+    i_lload_1 = 0x1f,
+    i_lload_2 = 0x20,
+    i_lload_3 = 0x21,
     i_istore = 0x36,
+    i_lstore = 0x37,
     i_istore_0 = 0x3b,
     i_istore_1 = 0x3c,
     i_istore_2 = 0x3d,
     i_istore_3 = 0x3e,
+    i_lstore_0 = 0x3f,
+    i_lstore_1 = 0x40,
+    i_lstore_2 = 0x41,
+    i_lstore_3 = 0x42,
     i_iadd = 0x60,
+    i_ladd = 0x61,
     i_isub = 0x64,
+    i_lsub = 0x65,
     i_imul = 0x68,
+    i_lmul = 0x69,
     i_idiv = 0x6c,
+    i_ldiv = 0x6d,
     i_irem = 0x70,
+    i_lrem = 0x71,
     i_ineg = 0x74,
     i_iinc = 0x84,
+    i_i2l = 0x85,
+    i_l2i = 0x88,
+    i_lcmp = 0x94,
     i_ifeq = 0x99,
     i_ifne = 0x9a,
     i_iflt = 0x9b,
@@ -54,6 +75,7 @@ typedef enum {
     i_if_icmple = 0xa4,
     i_goto = 0xa7,
     i_ireturn = 0xac,
+    i_lreturn = 0xad,
     i_return = 0xb1,
     i_getstatic = 0xb2,
     i_invokevirtual = 0xb6,
@@ -128,10 +150,10 @@ static inline void ineg(stack_frame_t *op_stack)
 
 static inline void invokevirtual(stack_frame_t *op_stack)
 {
-    int32_t op = pop_int(op_stack);
+    int64_t op = pop_int(op_stack);
 
     /* FIXME: the implement is not correct. */
-    printf("%d\n", op);
+    printf("%ld\n", op);
 }
 
 static inline void iconst(stack_frame_t *op_stack, uint8_t current)
@@ -183,6 +205,18 @@ stack_entry_t *execute(method_t *method,
             return ret;
         }
 
+        /* Return long from method */
+        case i_lreturn: {
+            stack_entry_t *ret = malloc(sizeof(stack_entry_t));
+            ret->entry.long_value = (int64_t) pop_int(op_stack);
+            ret->type = STACK_ENTRY_LONG;
+
+            free(op_stack->store);
+            free(op_stack);
+
+            return ret;
+        }
+
         /* Return void from method */
         case i_return: {
             stack_entry_t *ret = malloc(sizeof(stack_entry_t));
@@ -211,6 +245,9 @@ stack_entry_t *execute(method_t *method,
             case STACK_ENTRY_INT:
                 push_int(op_stack, exec_res->entry.int_value);
                 break;
+            case STACK_ENTRY_LONG:
+                push_long(op_stack, exec_res->entry.long_value);
+                break;
             case STACK_ENTRY_NONE:
                 /* nothing */
                 break;
@@ -220,6 +257,20 @@ stack_entry_t *execute(method_t *method,
 
             free(exec_res);
             pc += 3;
+            break;
+        }
+
+        /* Compare long */
+        case i_lcmp: {
+            int64_t op1 = pop_int(op_stack), op2 = pop_int(op_stack);
+            if (op1 < op2) {
+                push_int(op_stack, 1);
+            } else if (op1 == op2) {
+                push_int(op_stack, 0);
+            } else {
+                push_int(op_stack, -1);
+            }
+            pc += 1;
             break;
         }
 
@@ -393,6 +444,56 @@ stack_entry_t *execute(method_t *method,
             break;
         }
 
+        /* Push long or double from run-time constant pool (wide index) */
+        case i_ldc2_w: {
+            uint8_t param1 = code_buf[pc + 1], param2 = code_buf[pc + 2];
+            uint16_t index = ((param1 << 8) | param2);
+
+            uint64_t high = ((CONSTANT_LongOrDouble_info *) get_constant(
+                                 &clazz->constant_pool, index)
+                                 ->info)
+                                ->high_bytes;
+            uint64_t low = ((CONSTANT_LongOrDouble_info *) get_constant(
+                                &clazz->constant_pool, index)
+                                ->info)
+                               ->low_bytes;
+            int64_t value = high << 32 | low;
+            push_long(op_stack, value);
+            pc += 3;
+            break;
+        }
+
+        /* Load long from local variable */
+        case i_lload: {
+            int32_t param = code_buf[pc + 1];
+            int64_t loaded;
+            loaded = locals[param].entry.long_value;
+            push_long(op_stack, loaded);
+
+            pc += 2;
+            break;
+        }
+
+        /* FIXME: this implementation has some bugs.
+         * In standard JVM, one stack entry only store four
+         * bytes data, so in some method descriptor (e.g (JJ)V)
+         * the long value will store in locals[0] and locals[2]
+         * rather than locals[0] and locals[1].
+         */
+        /* Load long from local variable */
+        case i_lload_0:
+        case i_lload_1:
+        case i_lload_2:
+        case i_lload_3: {
+            int64_t param = current - i_lload_0;
+            int64_t loaded;
+            loaded = locals[param].entry.long_value;
+            push_long(op_stack, loaded);
+
+            pc += 1;
+            break;
+        }
+
         /* Load int from local variable */
         case i_iload_0:
         case i_iload_1:
@@ -416,6 +517,31 @@ stack_entry_t *execute(method_t *method,
             push_int(op_stack, loaded);
 
             pc += 2;
+            break;
+        }
+
+        /* Store long into local variable */
+        case i_lstore: {
+            int32_t param = code_buf[pc + 1];
+            int64_t stored = pop_int(op_stack);
+            locals[param].entry.long_value = stored;
+            locals[param].type = STACK_ENTRY_LONG;
+
+            pc += 2;
+            break;
+        }
+
+        /* Store long into local variable */
+        case i_lstore_0:
+        case i_lstore_1:
+        case i_lstore_2:
+        case i_lstore_3: {
+            int32_t param = current - i_lstore_0;
+            int64_t stored = pop_int(op_stack);
+            locals[param].entry.long_value = stored;
+            locals[param].type = STACK_ENTRY_LONG;
+
+            pc += 1;
             break;
         }
 
@@ -451,6 +577,24 @@ stack_entry_t *execute(method_t *method,
             break;
         }
 
+        /* Convert int to long */
+        case i_i2l: {
+            int32_t stored = pop_int(op_stack);
+            push_long(op_stack, (int64_t) stored);
+
+            pc += 1;
+            break;
+        }
+
+        /* Convert int to char */
+        case i_l2i: {
+            int64_t stored = pop_int(op_stack);
+            push_int(op_stack, (int32_t) stored);
+
+            pc += 1;
+            break;
+        }
+
         /* Push byte */
         case i_bipush:
             bipush(op_stack, pc, code_buf);
@@ -463,11 +607,31 @@ stack_entry_t *execute(method_t *method,
             pc += 1;
             break;
 
+        /* Add long */
+        case i_ladd: {
+            int64_t op1 = pop_int(op_stack);
+            int64_t op2 = pop_int(op_stack);
+
+            push_long(op_stack, op1 + op2);
+            pc += 1;
+            break;
+        }
+
         /* Subtract int */
         case i_isub:
             isub(op_stack);
             pc += 1;
             break;
+
+        /* Subtract long */
+        case i_lsub: {
+            int64_t op1 = pop_int(op_stack);
+            int64_t op2 = pop_int(op_stack);
+
+            push_long(op_stack, op2 - op1);
+            pc += 1;
+            break;
+        }
 
         /* Multiply int */
         case i_imul:
@@ -475,11 +639,31 @@ stack_entry_t *execute(method_t *method,
             pc += 1;
             break;
 
+        /* Multiply long */
+        case i_lmul: {
+            int64_t op1 = pop_int(op_stack);
+            int64_t op2 = pop_int(op_stack);
+
+            push_long(op_stack, op1 * op2);
+            pc += 1;
+            break;
+        }
+
         /* Divide int */
         case i_idiv:
             idiv(op_stack);
             pc += 1;
             break;
+
+        /* Divide long */
+        case i_ldiv: {
+            int64_t op1 = pop_int(op_stack);
+            int64_t op2 = pop_int(op_stack);
+
+            push_long(op_stack, op2 / op1);
+            pc += 1;
+            break;
+        }
 
         /* Remainder int */
         case i_irem:
@@ -487,7 +671,17 @@ stack_entry_t *execute(method_t *method,
             pc += 1;
             break;
 
-            /* Negate int */
+        /* Remainder long */
+        case i_lrem: {
+            int64_t op1 = pop_int(op_stack);
+            int64_t op2 = pop_int(op_stack);
+
+            push_long(op_stack, op2 % op1);
+            pc += 1;
+            break;
+        }
+
+        /* Negate int */
         case i_ineg:
             ineg(op_stack);
             pc += 1;
@@ -516,6 +710,14 @@ stack_entry_t *execute(method_t *method,
             iconst(op_stack, current);
             pc += 1;
             break;
+
+        /* Push long constant */
+        case i_lconst_0:
+        case i_lconst_1: {
+            push_long(op_stack, current - i_lconst_0);
+            pc += 1;
+            break;
+        }
 
         /* Push short */
         case i_sipush:

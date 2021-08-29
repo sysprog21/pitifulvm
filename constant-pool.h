@@ -11,6 +11,7 @@
 typedef enum {
     CONSTANT_Utf8 = 1,
     CONSTANT_Integer = 3,
+    CONSTANT_Long = 5,
     CONSTANT_Class = 7,
     CONSTANT_FieldRef = 9,
     CONSTANT_MethodRef = 10,
@@ -29,6 +30,11 @@ typedef struct {
 typedef struct {
     int32_t bytes;
 } CONSTANT_Integer_info;
+
+typedef struct {
+    u4 high_bytes;
+    u4 low_bytes;
+} CONSTANT_LongOrDouble_info;
 
 typedef struct {
     u2 name_index;
