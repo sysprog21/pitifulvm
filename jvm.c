@@ -266,8 +266,19 @@ stack_entry_t *execute(method_t *method,
             class_name = find_method_info_from_index(index, clazz, &method_name,
                                                      &method_descriptor);
 
-            class_file_t *target_class =
-                find_or_add_class_to_heap(class_name, prefix);
+            class_file_t *target_class;
+            if (find_or_add_class_to_heap(class_name, prefix, &target_class)) {
+                /* Call static initialization */
+                method_t *method = find_method("<clinit>", "()V", target_class);
+                if (method) {
+                    local_variable_t own_locals[method->code.max_locals];
+                    stack_entry_t *exec_res =
+                        execute(method, own_locals, target_class);
+                    assert(exec_res->type == STACK_ENTRY_NONE &&
+                           "<clinit> must not return a value");
+                    free(exec_res);
+                }
+            }
             assert(target_class && "Failed to load class in invokestatic");
 
             method_t *own_method =
@@ -793,8 +804,20 @@ stack_entry_t *execute(method_t *method,
                 break;
             }
 
-            class_file_t *target_class =
-                find_or_add_class_to_heap(class_name, prefix);
+            class_file_t *target_class;
+            if (find_or_add_class_to_heap(class_name, prefix, &target_class)) {
+                /* Call static initialization */
+                method_t *method = find_method("<clinit>", "()V", target_class);
+                if (method) {
+                    local_variable_t own_locals[method->code.max_locals];
+                    stack_entry_t *exec_res =
+                        execute(method, own_locals, target_class);
+                    assert(exec_res->type == STACK_ENTRY_NONE &&
+                           "<clinit> must not return a value");
+                    free(exec_res);
+                }
+            }
+
             field_t *field =
                 find_field(field_name, field_descriptor, target_class);
 
@@ -846,8 +869,19 @@ stack_entry_t *execute(method_t *method,
             class_name = find_field_info_from_index(index, clazz, &field_name,
                                                     &field_descriptor);
 
-            class_file_t *target_class =
-                find_or_add_class_to_heap(class_name, prefix);
+            class_file_t *target_class;
+            if (find_or_add_class_to_heap(class_name, prefix, &target_class)) {
+                /* Call static initialization */
+                method_t *method = find_method("<clinit>", "()V", target_class);
+                if (method) {
+                    local_variable_t own_locals[method->code.max_locals];
+                    stack_entry_t *exec_res =
+                        execute(method, own_locals, target_class);
+                    assert(exec_res->type == STACK_ENTRY_NONE &&
+                           "<clinit> must not return a value");
+                    free(exec_res);
+                }
+            }
             field_t *field =
                 find_field(field_name, field_descriptor, target_class);
 
@@ -930,9 +964,19 @@ stack_entry_t *execute(method_t *method,
             }
 
             /* FIXME: consider method modifier */
-            class_file_t *target_class =
-                find_or_add_class_to_heap(class_name, prefix);
-
+            class_file_t *target_class;
+            if (find_or_add_class_to_heap(class_name, prefix, &target_class)) {
+                /* Call static initialization */
+                method_t *method = find_method("<clinit>", "()V", target_class);
+                if (method) {
+                    local_variable_t own_locals[method->code.max_locals];
+                    stack_entry_t *exec_res =
+                        execute(method, own_locals, target_class);
+                    assert(exec_res->type == STACK_ENTRY_NONE &&
+                           "<clinit> must not return a value");
+                    free(exec_res);
+                }
+            }
             method_t *method =
                 find_method(method_name, method_descriptor, target_class);
             uint16_t num_params = get_number_of_parameters(method);
@@ -1093,8 +1137,19 @@ stack_entry_t *execute(method_t *method,
             uint16_t index = ((param1 << 8) | param2);
 
             char *class_name = find_class_name_from_index(index, clazz);
-            class_file_t *target_class =
-                find_or_add_class_to_heap(class_name, prefix);
+            class_file_t *target_class;
+            if (find_or_add_class_to_heap(class_name, prefix, &target_class)) {
+                /* Call static initialization */
+                method_t *method = find_method("<clinit>", "()V", target_class);
+                if (method) {
+                    local_variable_t own_locals[method->code.max_locals];
+                    stack_entry_t *exec_res =
+                        execute(method, own_locals, target_class);
+                    assert(exec_res->type == STACK_ENTRY_NONE &&
+                           "<clinit> must not return a value");
+                    free(exec_res);
+                }
+            }
             assert(target_class && "Failed to load class in new");
 
             object_t *object = create_object(target_class);
@@ -1122,8 +1177,19 @@ stack_entry_t *execute(method_t *method,
                 break;
             }
 
-            class_file_t *target_class =
-                find_or_add_class_to_heap(class_name, prefix);
+            class_file_t *target_class;
+            if (find_or_add_class_to_heap(class_name, prefix, &target_class)) {
+                /* Call static initialization */
+                method_t *method = find_method("<clinit>", "()V", target_class);
+                if (method) {
+                    local_variable_t own_locals[method->code.max_locals];
+                    stack_entry_t *exec_res =
+                        execute(method, own_locals, target_class);
+                    assert(exec_res->type == STACK_ENTRY_NONE &&
+                           "<clinit> must not return a value");
+                    free(exec_res);
+                }
+            }
             assert(target_class && "Failed to load class in i_invokespecial");
 
             /* find constructor method from class */
@@ -1186,6 +1252,15 @@ int main(int argc, char *argv[])
         prefix = malloc((match - argv[1] + 2));
         strncpy(prefix, argv[1], match - argv[1] + 1);
         prefix[match - argv[1] + 1] = '\0';
+    }
+
+    method_t *method = find_method("<clinit>", "()V", clazz);
+    if (method) {
+        local_variable_t own_locals[method->code.max_locals];
+        stack_entry_t *exec_res = execute(method, own_locals, clazz);
+        assert(exec_res->type == STACK_ENTRY_NONE &&
+               "<clinit> must not return a value");
+        free(exec_res);
     }
 
     /* execute the main method if found */
