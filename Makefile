@@ -46,7 +46,8 @@ TESTS = \
 	Long \
 	Caller \
 	Constructor \
-	Field
+	Field \
+	Static
 	
 check: $(addprefix tests/,$(TESTS:=-result.out))
 

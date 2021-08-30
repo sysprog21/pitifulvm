@@ -51,6 +51,7 @@ typedef struct {
     char *class_name;
     char *name;
     char *descriptor;
+    variable_t *static_var; /* store static fields in the class */
 } field_t;
 
 typedef struct {
@@ -73,6 +74,7 @@ void read_method_attributes(FILE *class_file,
                             code_t *code,
                             constant_pool_t *cp);
 uint16_t get_number_of_parameters(method_t *method);
+field_t *find_field(const char *name, const char *desc, class_file_t *clazz);
 method_t *find_method(const char *name, const char *desc, class_file_t *clazz);
 method_t *find_method_from_index(uint16_t idx, class_file_t *clazz);
 class_file_t get_class(FILE *class_file);

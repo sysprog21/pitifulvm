@@ -94,6 +94,7 @@ typedef enum {
     i_areturn = 0xb0,
     i_return = 0xb1,
     i_getstatic = 0xb2,
+    i_putstatic = 0xb3,
     i_getfield = 0xb4,
     i_putfield = 0xb5,
     i_invokevirtual = 0xb6,
@@ -785,10 +786,124 @@ stack_entry_t *execute(method_t *method,
             break;
 
         /* Get static field from class */
-        case i_getstatic:
-            /* FIXME: unimplemented */
+        case i_getstatic: {
+            uint8_t param1 = code_buf[pc + 1], param2 = code_buf[pc + 2];
+            uint16_t index = ((param1 << 8) | param2);
+
+            char *field_name, *field_descriptor, *class_name;
+            class_name = find_field_info_from_index(index, clazz, &field_name,
+                                                    &field_descriptor);
+
+            /* skip java.lang.System in order to support java print
+             * method */
+            if (!strcmp(class_name, "java/lang/System")) {
+                pc += 3;
+                break;
+            }
+
+            class_file_t *target_class =
+                find_or_add_class_to_heap(class_name, prefix);
+            field_t *field =
+                find_field(field_name, field_descriptor, target_class);
+
+            switch (field_descriptor[0]) {
+            case 'B':
+                /* signed byte */
+                push_byte(op_stack, field->static_var->value.char_value);
+                break;
+            case 'C':
+                /* FIXME: complete Unicode handling */
+                /* unicode character code */
+                push_short(op_stack, field->static_var->value.short_value);
+                break;
+            case 'I':
+                /* integer */
+                push_int(op_stack, field->static_var->value.int_value);
+                break;
+            case 'J':
+                /* long integer */
+                push_long(op_stack, field->static_var->value.long_value);
+                break;
+            case 'S':
+                /* signed short */
+                push_short(op_stack, field->static_var->value.short_value);
+                break;
+            case 'Z':
+                /* true or false */
+                push_byte(op_stack, field->static_var->value.char_value);
+                break;
+            case 'L':
+                /* an instance of class */
+                push_ref(op_stack, field->static_var->value.ptr_value);
+                break;
+            default:
+                fprintf(stderr, "Unknown field descriptor %c\n",
+                        field_descriptor[0]);
+                exit(1);
+            }
             pc += 3;
             break;
+        }
+
+        /* Put static field to class */
+        case i_putstatic: {
+            uint8_t param1 = code_buf[pc + 1], param2 = code_buf[pc + 2];
+            uint16_t index = ((param1 << 8) | param2);
+
+            char *field_name, *field_descriptor, *class_name;
+            class_name = find_field_info_from_index(index, clazz, &field_name,
+                                                    &field_descriptor);
+
+            class_file_t *target_class =
+                find_or_add_class_to_heap(class_name, prefix);
+            field_t *field =
+                find_field(field_name, field_descriptor, target_class);
+
+            switch (field_descriptor[0]) {
+            case 'B':
+                /* signed byte */
+                field->static_var->value.char_value = (u1) pop_int(op_stack);
+                field->static_var->type = VAR_BYTE;
+                break;
+            case 'C':
+                /* FIXME: complete Unicode handling */
+                /* unicode character code */
+                field->static_var->value.char_value = (u2) pop_int(op_stack);
+                field->static_var->type = VAR_SHORT;
+                break;
+            case 'I':
+                /* integer */
+                field->static_var->value.int_value = (u4) pop_int(op_stack);
+                field->static_var->type = VAR_INT;
+                break;
+            case 'J':
+                /* long integer */
+                field->static_var->value.long_value = (u8) pop_int(op_stack);
+                field->static_var->type = VAR_LONG;
+                break;
+            case 'S':
+                /* signed short */
+                field->static_var->value.short_value = (u2) pop_int(op_stack);
+                field->static_var->type = VAR_SHORT;
+                break;
+            case 'Z':
+                /* true or false */
+                field->static_var->value.char_value = (u1) pop_int(op_stack);
+                field->static_var->type = VAR_BYTE;
+                break;
+            case 'L':
+                /* an instance of class ClassName */
+                field->static_var->value.ptr_value = pop_ref(op_stack);
+                field->static_var->type = VAR_PTR;
+                break;
+            default:
+                fprintf(stderr, "Unknown field descriptor %c\n",
+                        field_descriptor[0]);
+                exit(1);
+            }
+            pc += 3;
+            break;
+        }
 
         /* Invoke instance method; dispatch based on class */
         case i_invokevirtual:

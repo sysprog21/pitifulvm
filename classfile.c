@@ -32,6 +32,27 @@ uint16_t get_number_of_parameters(method_t *method)
 }
 
 /**
+ * Find the field with the given name and signature.
+ * The difference between `find_field` and `object_heap:find_field_addr`
+ * is that `find_field` is used to find class level field  (i.e. static field),
+ * and `find_field_addr` is used to find object level field.
+ *
+ * @param name the field name
+ * @param desc the field descriptor string, e.g. "(I)I"
+ * @param clazz the parsed class file
+ * @return the field if it was found, or NULL
+ */
+field_t *find_field(const char *name, const char *desc, class_file_t *clazz)
+{
+    field_t *field = clazz->fields;
+    for (u2 i = 0; i < clazz->fields_count; ++i, field++) {
+        if (!(strcmp(name, field->name) || strcmp(desc, field->descriptor)))
+            return field;
+    }
+    return NULL;
+}
+
+/**
  * Find the method with the given name and signature.
  * The descriptor is necessary because Java allows method overloading.
  * This needs to be called directly to invoke main(),
@@ -218,6 +239,7 @@ field_t *get_fields(FILE *class_file, constant_pool_t *cp, class_file_t *clazz)
         const_pool_info *descriptor = get_constant(cp, info.descriptor_index);
         assert(descriptor->tag == CONSTANT_Utf8 && "Expected a UTF8");
         field->descriptor = (char *) descriptor->info;
+        field->static_var = malloc(sizeof(variable_t));
 
         read_field_attributes(class_file, &info);
     }
