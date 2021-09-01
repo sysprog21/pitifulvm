@@ -172,14 +172,6 @@ static inline void ineg(stack_frame_t *op_stack)
     push_int(op_stack, -op1);
 }
 
-static inline void invokevirtual(stack_frame_t *op_stack)
-{
-    int64_t op = pop_int(op_stack);
-
-    /* FIXME: the implement is not correct. */
-    printf("%" PRId64 "\n", op);
-}
-
 static inline void iconst(stack_frame_t *op_stack, uint8_t current)
 {
     push_int(op_stack, current - i_iconst_0);
@@ -906,10 +898,83 @@ stack_entry_t *execute(method_t *method,
         }
 
         /* Invoke instance method; dispatch based on class */
-        case i_invokevirtual:
-            invokevirtual(op_stack);
+        case i_invokevirtual: {
+            uint8_t param1 = code_buf[pc + 1], param2 = code_buf[pc + 2];
+            uint16_t index = ((param1 << 8) | param2);
+
+            /* the method to be called */
+            char *method_name, *method_descriptor, *class_name;
+            class_name = find_method_info_from_index(index, clazz, &method_name,
+                                                     &method_descriptor);
+
+            /* to handle print method */
+            if (!strcmp(class_name, "java/io/PrintStream")) {
+                stack_entry_t element = top(op_stack);
+
+                switch (element.type) {
+                /* integer */
+                case STACK_ENTRY_INT:
+                case STACK_ENTRY_SHORT:
+                case STACK_ENTRY_BYTE:
+                case STACK_ENTRY_LONG: {
+                    int64_t op = pop_int(op_stack);
+                    printf("%ld\n", op);
+                    break;
+                }
+                default:
+                    printf("print type (%d) is not supported\n", element.type);
+                    break;
+                }
+                pc += 3;
+                break;
+            }
+
+            /* FIXME: consider method modifier */
+            class_file_t *target_class =
+                find_or_add_class_to_heap(class_name, prefix);
+
+            method_t *method =
+                find_method(method_name, method_descriptor, target_class);
+            uint16_t num_params = get_number_of_parameters(method);
+            local_variable_t own_locals[method->code.max_locals];
+            memset(own_locals, 0, sizeof(own_locals));
+            for (int i = num_params; i >= 1; i--) {
+                pop_to_local(op_stack, &own_locals[i]);
+            }
+            object_t *obj = pop_ref(op_stack);
+
+            /* first argument is this pointer */
+            own_locals[0].entry.ptr_value = obj;
+            own_locals[0].type = STACK_ENTRY_REF;
+
+            stack_entry_t *exec_res = execute(method, own_locals, target_class);
+            switch (exec_res->type) {
+            case STACK_ENTRY_BYTE:
+                push_int(op_stack, exec_res->entry.char_value);
+                break;
+            case STACK_ENTRY_SHORT:
+                push_int(op_stack, exec_res->entry.short_value);
+                break;
+            case STACK_ENTRY_INT:
+                push_int(op_stack, exec_res->entry.int_value);
+                break;
+            case STACK_ENTRY_LONG:
+                push_long(op_stack, exec_res->entry.long_value);
+                break;
+            case STACK_ENTRY_REF:
+                push_ref(op_stack, exec_res->entry.ptr_value);
+                break;
+            case STACK_ENTRY_NONE:
+                /* nothing */
+                break;
+            default:
+                assert(0 && "unknown return type");
+            }
+
+            free(exec_res);
             pc += 3;
             break;
+        }
 
         /* Push int constant */
         case i_iconst_m1:

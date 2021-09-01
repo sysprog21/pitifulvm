@@ -279,13 +279,6 @@ method_t *get_methods(FILE *class_file, constant_pool_t *cp)
         assert(descriptor->tag == CONSTANT_Utf8 && "Expected a UTF8");
         method->descriptor = (char *) descriptor->info;
 
-        /* FIXME: this VM can only execute static methods, while every class
-         * has a constructor method <init>
-         */
-        if (strcmp(method->name, "<init>"))
-            assert((info.access_flags & IS_STATIC) &&
-                   "Only static methods are supported by this VM.");
-
         read_method_attributes(class_file, &info, &method->code, cp);
     }
 
