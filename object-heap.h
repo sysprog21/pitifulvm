@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string.h>
+
 #include "classfile.h"
 #include "list.h"
 
@@ -18,4 +20,5 @@ typedef struct {
 void init_object_heap();
 void free_object_heap();
 object_t *create_object(class_file_t *clazz);
+char *create_string(class_file_t *clazz, char *src);
 variable_t *find_field_addr(object_t *obj, char *name);

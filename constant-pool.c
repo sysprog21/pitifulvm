@@ -48,6 +48,23 @@ CONSTANT_Class_info *get_class_name(constant_pool_t *cp, u2 idx)
     return (CONSTANT_Class_info *) class->info;
 }
 
+CONSTANT_MethodHandle_info *get_method_handle(constant_pool_t *cp, u2 idx)
+{
+    const_pool_info *handle = get_constant(cp, idx);
+    assert(handle->tag == CONSTANT_MethodHandle && "Expected a MethodHandle");
+    return (CONSTANT_MethodHandle_info *) handle->info;
+}
+
+char *get_string_utf(constant_pool_t *cp, u2 idx)
+{
+    const_pool_info *str = get_constant(cp, idx);
+    assert(str->tag == CONSTANT_String && "Expected a String");
+    const_pool_info *utf8 =
+        get_constant(cp, ((CONSTANT_String_info *) str->info)->string_index);
+    assert(utf8->tag == CONSTANT_Utf8 && "Expected a UTF8");
+    return (char *) utf8->info;
+}
+
 constant_pool_t get_constant_pool(FILE *class_file)
 {
     constant_pool_t cp = {
@@ -116,6 +133,32 @@ constant_pool_t get_constant_pool(FILE *class_file)
             assert(value && "Failed to allocate NameAndType constant");
             value->name_index = read_u2(class_file);
             value->descriptor_index = read_u2(class_file);
+            constant->info = (u1 *) value;
+            break;
+        }
+
+        case CONSTANT_String: {
+            CONSTANT_String_info *value = malloc(sizeof(*value));
+            assert(value && "Failed to allocate String constant");
+            value->string_index = read_u2(class_file);
+            constant->info = (u1 *) value;
+            break;
+        }
+
+        case CONSTANT_InvokeDynamic: {
+            CONSTANT_InvokeDynamic_info *value = malloc(sizeof(*value));
+            assert(value && "Failed to allocate InvokeDynamic constant");
+            value->bootstrap_method_attr_index = read_u2(class_file);
+            value->name_and_type_index = read_u2(class_file);
+            constant->info = (u1 *) value;
+            break;
+        }
+
+        case CONSTANT_MethodHandle: {
+            CONSTANT_MethodHandle_info *value = malloc(sizeof(*value));
+            assert(value && "Failed to allocate MethodHandle constant");
+            value->reference_kind = read_u1(class_file);
+            value->reference_index = read_u2(class_file);
             constant->info = (u1 *) value;
             break;
         }

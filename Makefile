@@ -50,7 +50,8 @@ TESTS = \
 	Static \
 	Invokevirtual \
 	Inherit \
-	Initializer
+	Initializer \
+	Strings
 	
 check: $(addprefix tests/,$(TESTS:=-result.out))
 

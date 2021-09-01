@@ -109,6 +109,15 @@ void free_class_heap()
         }
         free(class_heap.class_info[i]->clazz->methods);
 
+        bootmethods_attr_t *bootstrap =
+            class_heap.class_info[i]->clazz->bootstrap;
+        if (bootstrap) {
+            for (u2 j = 0; j < bootstrap->num_bootstrap_methods; j++)
+                free(bootstrap->bootstrap_methods[j].bootstrap_arguments);
+            free(bootstrap->bootstrap_methods);
+            free(bootstrap);
+        }
+
         free(class_heap.class_info[i]->clazz);
         free(class_heap.class_info[i]->name);
         free(class_heap.class_info[i]);
