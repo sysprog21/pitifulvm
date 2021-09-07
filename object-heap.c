@@ -59,6 +59,89 @@ char *create_string(class_file_t *clazz, char *src)
     return dest;
 }
 
+/**
+ * Build an array recursively.
+ *
+ * @param depth the current dfs depth
+ * @param dimension number of dimension in the array
+ * @param n_elements the array represents number of element in each dimension
+ * @param type_size element size of the array
+ * @return the array that wanted be created
+ */
+void **build_array(uint8_t depth,
+                   int dimension,
+                   int *n_elements,
+                   size_t type_size)
+{
+    void **arr;
+    if (depth == dimension - 1) {
+        arr = calloc(n_elements[depth], type_size);
+    } else {
+        arr = calloc(n_elements[depth], sizeof(void *));
+        for (int i = 0; i < n_elements[depth]; ++i) {
+            *(arr + i) =
+                build_array(depth + 1, dimension, n_elements, type_size);
+        }
+    }
+    return arr;
+}
+
+/**
+ * Free the array recursively.
+ *
+ * @param obj the object that contains the array
+ * @param depth the current dfs depth
+ * @param dimension number of dimension in the array
+ * @return arr the array that will be freed
+ */
+void free_array(object_t *obj, uint8_t depth, int dimension, void **arr)
+{
+    if (depth != dimension - 1) {
+        for (int i = 0; i < ((int *) (obj->value[1].value.ptr_value))[depth];
+             ++i) {
+            free_array(obj, depth + 1, dimension, *(arr + i));
+        }
+    }
+    free(arr);
+}
+
+/**
+ * Create an array object.
+ *
+ * @param clazz class of the element in the array, but only meaningful when
+ * types are not primitive types
+ * @param dimension number of dimension in the array
+ * @param n_elements the array represents number of element in each dimension
+ * @param type_size element size of the array
+ * @return the array that wanted be created
+ */
+void *create_array(class_file_t *clazz,
+                   uint8_t dimension,
+                   int *n_elements,
+                   size_t type_size)
+{
+    void *arr = build_array(0, dimension, n_elements, type_size);
+    object_t *arr_obj = malloc(sizeof(object_t));
+    arr_obj->value = malloc(sizeof(variable_t) * 3);
+    /* element 0: array memory
+     * element 1: number of elements in each dimension
+     * element 2: total dimensions in the array
+     */
+    arr_obj->value[0].type = VAR_ARRAY_PTR;
+    arr_obj->value[0].value.ptr_value = arr;
+    arr_obj->value[1].type = VAR_PTR;
+    arr_obj->value[1].value.ptr_value = n_elements;
+    arr_obj->value[2].type = VAR_BYTE;
+    arr_obj->value[2].value.char_value = dimension;
+    arr_obj->class = clazz;
+    arr_obj->parent = NULL;
+    arr_obj->fields_count = 1;
+
+    object_heap.objects[object_heap.length++] = arr_obj;
+
+    return (void *) arr;
+}
+
 variable_t *find_field_addr(object_t *obj, char *name)
 {
     field_t *field = obj->class->fields;
@@ -79,6 +162,10 @@ void free_object_heap()
             if (cur->value) {
                 if (cur->value->type == VAR_STR_PTR) {
                     free(cur->value->value.ptr_value);
+                } else if (cur->value->type == VAR_ARRAY_PTR) {
+                    free_array(cur, 0, cur->value[2].value.char_value,
+                               cur->value[0].value.ptr_value);
+                    free(cur->value[1].value.ptr_value);
                 }
             }
             free(cur->value);
