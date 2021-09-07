@@ -56,9 +56,11 @@ typedef struct {
 
 typedef struct {
     constant_pool_t constant_pool;
+    class_info_t *info;
     method_t *methods;
     field_t *fields;
     u2 fields_count;
+    bool initialized;
 } class_file_t;
 
 typedef struct {
@@ -67,7 +69,7 @@ typedef struct {
 } meta_class_t;
 
 class_header_t get_class_header(FILE *class_file);
-class_info_t get_class_info(FILE *class_file);
+class_info_t *get_class_info(FILE *class_file);
 method_t *get_methods(FILE *class_file, constant_pool_t *cp);
 void read_method_attributes(FILE *class_file,
                             method_info *info,
