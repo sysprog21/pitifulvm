@@ -12,8 +12,7 @@
 
 typedef struct {
     u4 magic;
-    u2 minor_version;
-    u2 major_version;
+    u2 minor_version, major_version;
 } class_header_t;
 
 typedef struct {
@@ -53,7 +52,7 @@ typedef enum {
     CONSTANT_Class = 7,
     CONSTANT_FieldRef = 9,
     CONSTANT_MethodRef = 10,
-    CONSTANT_NameAndType = 12
+    CONSTANT_NameAndType = 12,
 } const_pool_tag_t;
 
 typedef struct {
@@ -574,14 +573,12 @@ int32_t *execute(method_t *method,
             method_t *own_method = find_method_from_index(index, clazz);
             uint16_t num_params = get_number_of_parameters(own_method);
             local_variable_t own_locals[own_method->code.max_locals];
-            for (int i = num_params - 1; i >= 0; i--) {
+            for (int i = num_params - 1; i >= 0; i--)
                 pop_to_local(op_stack, &own_locals[i]);
-            }
 
             int32_t *exec_res = execute(own_method, own_locals, clazz);
-            if (exec_res) {
+            if (exec_res)
                 push_int(op_stack, *exec_res);
-            }
 
             free(exec_res);
             pc += 3;
@@ -681,7 +678,8 @@ int32_t *execute(method_t *method,
                 int16_t res = ((param1 << 8) | param2);
                 pc += res - 3;
             }
-        } break;
+            break;
+        }
 
         /* Branch if int comparison succeeds: if less than */
         case i_if_icmplt: {
