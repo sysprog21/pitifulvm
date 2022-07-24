@@ -557,7 +557,7 @@ int32_t *execute(method_t *method,
             free(op_stack->store);
             free(op_stack);
             return ret;
-        } break;
+        }
 
         /* Return void from method */
         case i_return:
@@ -585,7 +585,8 @@ int32_t *execute(method_t *method,
 
             free(exec_res);
             pc += 3;
-        } break;
+            break;
+        }
 
         /* Branch if int comparison with zero succeeds: if equals */
         case i_ifeq: {
@@ -596,7 +597,8 @@ int32_t *execute(method_t *method,
                 int16_t res = ((param1 << 8) | param2);
                 pc += res - 3;
             }
-        } break;
+            break;
+        }
 
         /* Branch if int comparison with zero succeeds: if not equals */
         case i_ifne: {
@@ -607,7 +609,8 @@ int32_t *execute(method_t *method,
                 int16_t res = ((param1 << 8) | param2);
                 pc += res - 3;
             }
-        } break;
+            break;
+        }
 
         /* Branch if int comparison with zero succeeds: if less than 0 */
         case i_iflt: {
@@ -618,7 +621,8 @@ int32_t *execute(method_t *method,
                 int16_t res = ((param1 << 8) | param2);
                 pc += res - 3;
             }
-        } break;
+            break;
+        }
 
         /* Branch if int comparison with zero succeeds: if >= 0 */
         case i_ifge: {
@@ -629,7 +633,8 @@ int32_t *execute(method_t *method,
                 int16_t res = ((param1 << 8) | param2);
                 pc += res - 3;
             }
-        } break;
+            break;
+        }
 
         /* Branch if int comparison with zero succeeds: if greater than 0 */
         case i_ifgt: {
@@ -640,7 +645,8 @@ int32_t *execute(method_t *method,
                 int16_t res = ((param1 << 8) | param2);
                 pc += res - 3;
             }
-        } break;
+            break;
+        }
 
         /* Branch if int comparison with zero succeeds: if <= 0 */
         case i_ifle: {
@@ -651,7 +657,8 @@ int32_t *execute(method_t *method,
                 int16_t res = ((param1 << 8) | param2);
                 pc += res - 3;
             }
-        } break;
+            break;
+        }
 
         /* Branch if int comparison succeeds: if equals */
         case i_if_icmpeq: {
@@ -662,7 +669,8 @@ int32_t *execute(method_t *method,
                 int16_t res = ((param1 << 8) | param2);
                 pc += res - 3;
             }
-        } break;
+            break;
+        }
 
         /* Branch if int comparison succeeds: if not equals */
         case i_if_icmpne: {
@@ -684,7 +692,8 @@ int32_t *execute(method_t *method,
                 int16_t res = ((param1 << 8) | param2);
                 pc += res - 3;
             }
-        } break;
+            break;
+        }
 
         /* Branch if int comparison succeeds: if greater than or equal to */
         case i_if_icmpge: {
@@ -695,7 +704,8 @@ int32_t *execute(method_t *method,
                 int16_t res = ((param1 << 8) | param2);
                 pc += res - 3;
             }
-        } break;
+            break;
+        }
 
         /* Branch if int comparison succeeds: if greater than */
         case i_if_icmpgt: {
@@ -706,7 +716,8 @@ int32_t *execute(method_t *method,
                 int16_t res = ((param1 << 8) | param2);
                 pc += res - 3;
             }
-        } break;
+            break;
+        }
 
         /* Branch if int comparison succeeds: if less than or equal to */
         case i_if_icmple: {
@@ -717,14 +728,16 @@ int32_t *execute(method_t *method,
                 int16_t res = ((param1 << 8) | param2);
                 pc += res - 3;
             }
-        } break;
+            break;
+        }
 
         /* Branch always */
         case i_goto: {
             uint8_t param1 = code_buf[pc + 1], param2 = code_buf[pc + 2];
             int16_t res = ((param1 << 8) | param2);
             pc += res;
-        } break;
+            break;
+        }
 
         /* Push item from run-time constant pool */
         case i_ldc: {
@@ -741,7 +754,8 @@ int32_t *execute(method_t *method,
             /* need to check type */
             push_int(op_stack, ((CONSTANT_Integer_info *) info)->bytes);
             pc += 2;
-        } break;
+            break;
+        }
 
         /* Load int from local variable */
         case i_iload_0:
@@ -754,7 +768,8 @@ int32_t *execute(method_t *method,
             loaded = locals[param].entry.int_value;
             push_int(op_stack, loaded);
             pc += 1;
-        } break;
+            break;
+        }
 
         /* Load int from local variable */
         case i_iload: {
@@ -765,7 +780,8 @@ int32_t *execute(method_t *method,
             push_int(op_stack, loaded);
 
             pc += 2;
-        } break;
+            break;
+        }
 
         /* Store int into local variable */
         case i_istore: {
@@ -774,7 +790,8 @@ int32_t *execute(method_t *method,
             locals[param].entry.int_value = stored;
             locals[param].type = STACK_ENTRY_INT;
             pc += 2;
-        } break;
+            break;
+        }
 
         /* Store int into local variable */
         case i_istore_0:
@@ -786,7 +803,8 @@ int32_t *execute(method_t *method,
             locals[param].entry.int_value = stored;
             locals[param].type = STACK_ENTRY_INT;
             pc += 1;
-        } break;
+            break;
+        }
 
         /* Increment local variable by constant */
         case i_iinc: {
@@ -794,62 +812,62 @@ int32_t *execute(method_t *method,
             int8_t b = code_buf[pc + 2]; /* signed value */
             locals[i].entry.int_value += b;
             pc += 3;
-        } break;
-
+            break;
+        }
 
         /* Push byte */
-        case i_bipush: {
+        case i_bipush:
             bipush(op_stack, pc, code_buf);
             pc += 2;
-        } break;
+            break;
 
         /* Add int */
-        case i_iadd: {
+        case i_iadd:
             iadd(op_stack);
             pc += 1;
-        } break;
+            break;
 
         /* Subtract int */
-        case i_isub: {
+        case i_isub:
             isub(op_stack);
             pc += 1;
-        } break;
+            break;
 
         /* Multiply int */
-        case i_imul: {
+        case i_imul:
             imul(op_stack);
             pc += 1;
-        } break;
+            break;
 
         /* Divide int */
-        case i_idiv: {
+        case i_idiv:
             idiv(op_stack);
             pc += 1;
-        } break;
+            break;
 
         /* Remainder int */
-        case i_irem: {
+        case i_irem:
             irem(op_stack);
             pc += 1;
-        } break;
+            break;
 
-        /* Negate int */
-        case i_ineg: {
+            /* Negate int */
+        case i_ineg:
             ineg(op_stack);
             pc += 1;
-        } break;
+            break;
 
         /* Get static field from class */
-        case i_getstatic: {
+        case i_getstatic:
             /* FIXME: unimplemented */
             pc += 3;
-        } break;
+            break;
 
         /* Invoke instance method; dispatch based on class */
-        case i_invokevirtual: {
+        case i_invokevirtual:
             invokevirtual(op_stack);
             pc += 3;
-        } break;
+            break;
 
         /* Push int constant */
         case i_iconst_m1:
@@ -858,16 +876,16 @@ int32_t *execute(method_t *method,
         case i_iconst_2:
         case i_iconst_3:
         case i_iconst_4:
-        case i_iconst_5: {
+        case i_iconst_5:
             iconst(op_stack, current);
             pc += 1;
-        } break;
+            break;
 
         /* Push short */
-        case i_sipush: {
+        case i_sipush:
             sipush(op_stack, pc, code_buf);
             pc += 3;
-        } break;
+            break;
         }
     }
     return NULL;
