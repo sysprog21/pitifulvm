@@ -2,3 +2,4 @@
 jvm
 tests/*.out
 tests/*.class
+*.dSYM
