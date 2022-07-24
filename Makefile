@@ -37,7 +37,9 @@ TESTS = \
 
 check: $(addprefix tests/,$(TESTS:=-result.out))
 
+ifneq (, $(shell which valgrind))
 leak: $(addprefix tests/,$(TESTS:=-leak.out))
+endif
 
 tests/%.class: tests/%.java
 	$(Q)$(JAVAC) $^
