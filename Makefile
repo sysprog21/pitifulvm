@@ -2,19 +2,22 @@ CC ?= gcc
 CFLAGS = -std=c99 -Os -Wall -Wextra
 
 BIN = jvm
-OBJ = jvm.o stack.o
+OBJS = jvm.o stack.o
+
+deps := $(OBJS:%.o=.%.o.d)
 
 include mk/common.mk
 include mk/jdk.mk
 
 # Build PitifulVM
 all: $(BIN)
-$(BIN): $(OBJ)
-	$(VECHO) "  CC+LD\t\t$@\n"
+$(BIN): $(OBJS)
+	$(VECHO) "  CC+LD\t$@\n"
 	$(Q)$(CC) -o $@ $^
 
 %.o: %.c
-	$(Q)$(CC) $(CFLAGS) -c $<
+	$(VECHO) "  CC\t$@\n"
+	$(Q)$(CC) $(CFLAGS) -c -MMD -MF .$@.d $<
 
 TESTS = \
 	Factorial \
@@ -66,10 +69,12 @@ tests/%-leak.out: tests/%.class jvm
 	else $(PRINTF) FAILED $$name. Aborting.; false; fi
 
 clean:
-	$(Q)$(RM) *.o jvm tests/*.out tests/*.class $(REDIR)
+	$(Q)$(RM) $(OBJS) $(deps) *~ jvm tests/*.out tests/*.class $(REDIR)
 
 .PRECIOUS: %.o tests/%.class tests/%-expected.out tests/%-actual.out tests/%-result.out tests/%-leak.out
 
 indent:
 	clang-format -i *.c *.h 
 	cloc jvm.c
+
+-include $(deps)

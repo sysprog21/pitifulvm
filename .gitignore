@@ -1,4 +1,5 @@
 *.o
+*.o.d
 jvm
 tests/*.out
 tests/*.class
