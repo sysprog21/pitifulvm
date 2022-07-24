@@ -10,12 +10,6 @@
 
 #include "stack.h"
 
-typedef uint8_t u1;
-typedef uint16_t u2;
-typedef uint32_t u4;
-
-typedef stack_entry_t local_variable_t;
-
 typedef struct {
     u4 magic;
     u2 minor_version;
@@ -560,11 +554,15 @@ int32_t *execute(method_t *method,
         case i_ireturn: {
             int32_t *ret = malloc(sizeof(int32_t));
             *ret = pop_int(op_stack);
+            free(op_stack->store);
+            free(op_stack);
             return ret;
         } break;
 
         /* Return void from method */
         case i_return:
+            free(op_stack->store);
+            free(op_stack);
             return NULL;
 
         /* Invoke a class (static) method */

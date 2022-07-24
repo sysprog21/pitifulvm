@@ -37,6 +37,8 @@ TESTS = \
 
 check: $(addprefix tests/,$(TESTS:=-result.out))
 
+leak: $(addprefix tests/,$(TESTS:=-leak.out))
+
 tests/%.class: tests/%.java
 	$(Q)$(JAVAC) $^
 
@@ -53,10 +55,18 @@ tests/%-result.out: tests/%-expected.out tests/%-actual.out
 	if [ -s $@ ]; then $(PRINTF) FAILED $$name. Aborting.; false; \
 	else $(call pass); fi
 
+tests/%-leak.out: tests/%.class jvm
+	$(Q)valgrind ./jvm $< > $@ 2>&1; \
+	name='test $(@F:-leak.out=)'; \
+	$(PRINTF) "Running $$name..."; \
+	if grep -q 'All heap blocks were freed' $@; \
+	then $(call pass); \
+	else $(PRINTF) FAILED $$name. Aborting.; false; fi
+
 clean:
 	$(Q)$(RM) *.o jvm tests/*.out tests/*.class $(REDIR)
 
-.PRECIOUS: %.o tests/%.class tests/%-expected.out tests/%-actual.out tests/%-result.out
+.PRECIOUS: %.o tests/%.class tests/%-expected.out tests/%-actual.out tests/%-result.out tests/%-leak.out
 
 indent:
 	clang-format -i *.c *.h 
