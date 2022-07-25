@@ -2,7 +2,7 @@ CC ?= gcc
 CFLAGS = -std=c99 -Os -Wall -Wextra
 
 BIN = jvm
-OBJS = jvm.o stack.o
+OBJS = jvm.o stack.o constant-pool.o classfile.o
 
 deps := $(OBJS:%.o=.%.o.d)
 
