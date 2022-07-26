@@ -31,38 +31,39 @@ void push_int(stack_frame_t *stack, int32_t value)
     stack->size++;
 }
 
-/* pop top of stack value and convert to 32 bits integer */
+void push_long(stack_frame_t *stack, int64_t value)
+{
+    stack->store[stack->size].entry.long_value = value;
+    stack->store[stack->size].type = STACK_ENTRY_LONG;
+    stack->size++;
+}
+
+/* pop top of stack value and convert to 64 bits integer */
 int64_t stack_to_int(stack_value_t *entry, size_t size)
 {
     switch (size) {
     /* int8_t */
-    case 1: {
-        int8_t value;
-        value = entry->char_value;
-        return value;
-    }
+    case 1:
+        return (int8_t) entry->long_value;
     /* int16_t */
-    case 2: {
-        int16_t value;
-        value = entry->short_value;
-        return value;
-    }
+    case 2:
+        return (int16_t) entry->long_value;
     /* int32_t */
-    case 4: {
-        int32_t value;
-        value = entry->int_value;
-        return value;
-    }
+    case 4:
+        return (int32_t) entry->long_value;
+    /* int64_t */
+    case 8:
+        return (int64_t) entry->long_value;
     default:
         assert("stack entry not an interger");
         return -1;
     }
 }
 
-int32_t pop_int(stack_frame_t *stack)
+int64_t pop_int(stack_frame_t *stack)
 {
     size_t size = get_type_size(stack->store[stack->size - 1].type);
-    int32_t value = stack_to_int(&stack->store[stack->size - 1].entry, size);
+    int64_t value = stack_to_int(&stack->store[stack->size - 1].entry, size);
     stack->size--;
     return value;
 }
@@ -71,10 +72,10 @@ void pop_to_local(stack_frame_t *stack, local_variable_t *locals)
 {
     stack_entry_type_t type = stack->store[stack->size - 1].type;
     /* convert to integer */
-    if (type >= STACK_ENTRY_BYTE && type <= STACK_ENTRY_INT) {
-        int32_t value = pop_int(stack);
-        locals->entry.int_value = value;
-        locals->type = STACK_ENTRY_INT;
+    if (type >= STACK_ENTRY_BYTE && type <= STACK_ENTRY_LONG) {
+        int64_t value = pop_int(stack);
+        locals->entry.long_value = value;
+        locals->type = STACK_ENTRY_LONG;
     }
 }
 
