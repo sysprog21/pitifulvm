@@ -36,8 +36,8 @@ uint16_t get_number_of_parameters(method_t *method)
 /**
  * Find the method with the given name and signature.
  * The descriptor is necessary because Java allows method overloading.
- * This only needs to be called directly to invoke main();
- * for the invokestatic instruction, use find_method_from_index().
+ * This needs to be called directly to invoke main(),
+ * or to find method from specific class.
  *
  * @param name the method name, e.g. "factorial"
  * @param desc the method descriptor string, e.g. "(I)I"
@@ -54,23 +54,42 @@ method_t *find_method(const char *name, const char *desc, class_file_t *clazz)
 }
 
 /**
- * Find the method corresponding to the given constant pool index.
+ * Find the method info corresponding to the given constant pool index.
  *
  * @param index the constant pool index of the Methodref to call
  * @param clazz the parsed class file
- * @return the method if it was found, or NULL
+ * @param name_info the pointer that will contain method name on return
+ * @param descriptor_info the pointer that will contain method information on
+ * return
+ * @return the class name that contains this method
  */
-method_t *find_method_from_index(uint16_t idx, class_file_t *clazz)
+char *find_method_info_from_index(uint16_t idx,
+                                  class_file_t *clazz,
+                                  char **name_info,
+                                  char **descriptor_info)
 {
-    CONSTANT_NameAndType_info *name_and_type =
-        get_method_name_and_type(&clazz->constant_pool, idx);
-    const_pool_info *name =
-        get_constant(&clazz->constant_pool, name_and_type->name_index);
+    CONSTANT_FieldOrMethodRef_info *method_ref =
+        get_methodref(&clazz->constant_pool, idx);
+    const_pool_info *name_and_type =
+        get_constant(&clazz->constant_pool, method_ref->name_and_type_index);
+    assert(name_and_type->tag == CONSTANT_NameAndType &&
+           "Expected a NameAndType");
+    const_pool_info *name = get_constant(
+        &clazz->constant_pool,
+        ((CONSTANT_NameAndType_info *) name_and_type->info)->name_index);
     assert(name->tag == CONSTANT_Utf8 && "Expected a UTF8");
-    const_pool_info *descriptor =
-        get_constant(&clazz->constant_pool, name_and_type->descriptor_index);
+    const_pool_info *descriptor = get_constant(
+        &clazz->constant_pool,
+        ((CONSTANT_NameAndType_info *) name_and_type->info)->descriptor_index);
     assert(descriptor->tag == CONSTANT_Utf8 && "Expected a UTF8");
-    return find_method((char *) name->info, (char *) descriptor->info, clazz);
+    CONSTANT_Class_info *class_info =
+        get_class_name(&clazz->constant_pool, method_ref->class_index);
+    const_pool_info *class_name =
+        get_constant(&clazz->constant_pool, class_info->string_index);
+    *name_info = (char *) name->info;
+    *descriptor_info = (char *) descriptor->info;
+
+    return (char *) class_name->info;
 }
 
 void read_method_attributes(FILE *class_file,
@@ -168,21 +187,4 @@ class_file_t get_class(FILE *class_file)
     /* Read the list of static methods */
     clazz.methods = get_methods(class_file, &clazz.constant_pool);
     return clazz;
-}
-
-/**
- * Frees the memory used by a parsed class file.
- *
- * @param class the parsed class file
- */
-void free_class(class_file_t *clazz)
-{
-    constant_pool_t *cp = &clazz->constant_pool;
-    for (u2 i = 0; i < cp->constant_pool_count; i++)
-        free(cp->constant_pool[i].info);
-    free(cp->constant_pool);
-
-    for (method_t *method = clazz->methods; method->name; method++)
-        free(method->code.code);
-    free(clazz->methods);
 }

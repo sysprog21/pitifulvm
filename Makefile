@@ -2,7 +2,12 @@ CC ?= gcc
 CFLAGS = -std=c99 -Os -Wall -Wextra
 
 BIN = jvm
-OBJS = jvm.o stack.o constant-pool.o classfile.o
+OBJS = \
+	jvm.o \
+	stack.o \
+	constant-pool.o \
+	classfile.o \
+	class-heap.o
 
 deps := $(OBJS:%.o=.%.o.d)
 
@@ -37,7 +42,8 @@ TESTS = \
 	PalindromeProduct \
 	Primes \
 	Recursion \
-	Long
+	Long \
+	Caller
 
 check: $(addprefix tests/,$(TESTS:=-result.out))
 

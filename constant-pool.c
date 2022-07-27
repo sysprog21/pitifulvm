@@ -34,16 +34,18 @@ const_pool_info *get_constant(constant_pool_t *constant_pool, u2 index)
     return &constant_pool->constant_pool[index - 1];
 }
 
-CONSTANT_NameAndType_info *get_method_name_and_type(constant_pool_t *cp, u2 idx)
+CONSTANT_FieldOrMethodRef_info *get_methodref(constant_pool_t *cp, u2 idx)
 {
     const_pool_info *method = get_constant(cp, idx);
     assert(method->tag == CONSTANT_MethodRef && "Expected a MethodRef");
-    const_pool_info *name_and_type_constant = get_constant(
-        cp,
-        ((CONSTANT_FieldOrMethodRef_info *) method->info)->name_and_type_index);
-    assert(name_and_type_constant->tag == CONSTANT_NameAndType &&
-           "Expected a NameAndType");
-    return (CONSTANT_NameAndType_info *) name_and_type_constant->info;
+    return (CONSTANT_FieldOrMethodRef_info *) method->info;
+}
+
+CONSTANT_Class_info *get_class_name(constant_pool_t *cp, u2 idx)
+{
+    const_pool_info *class = get_constant(cp, idx);
+    assert(class->tag == CONSTANT_Class && "Expected a Class");
+    return (CONSTANT_Class_info *) class->info;
 }
 
 constant_pool_t get_constant_pool(FILE *class_file)
