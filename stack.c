@@ -4,9 +4,7 @@ void init_stack(stack_frame_t *stack, size_t entry_size)
 {
     memset(stack, 0, sizeof(stack_frame_t));
     stack->max_size = entry_size;
-    stack->store = (stack_entry_t *) malloc(sizeof(stack_entry_t) * entry_size);
-    for (size_t i = 0; i < entry_size; i++)
-        memset(&stack->store[i], 0, sizeof(stack_entry_t));
+    stack->store = calloc(sizeof(stack_entry_t), entry_size);
     stack->size = 0;
 }
 
