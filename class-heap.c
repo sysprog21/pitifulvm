@@ -1,6 +1,6 @@
 #include "class-heap.h"
 
-// FIXME: use dynamic structure to grow heap size dynamically
+/* FIXME: use dynamic structure to grow heap size dynamically */
 #define MAX_HEAP_SIZE 100
 
 static class_heap_t class_heap;
@@ -29,9 +29,8 @@ void add_class(class_file_t *clazz, char *name)
 class_file_t *find_class_from_heap(char *value)
 {
     for (int i = 0; i < class_heap.length; ++i) {
-        if (strcmp(class_heap.class_info[i]->name, value) == 0) {
+        if (!strcmp(class_heap.class_info[i]->name, value))
             return class_heap.class_info[i]->clazz;
-        }
     }
     return NULL;
 }
@@ -41,17 +40,16 @@ void free_class_heap()
     for (int i = 0; i < class_heap.length; ++i) {
         const_pool_info *constant =
             class_heap.class_info[i]->clazz->constant_pool.constant_pool;
-        for (u2 j = 0;
-             j <
-             class_heap.class_info[i]->clazz->constant_pool.constant_pool_count;
+        for (u2 j = 0; j < class_heap.class_info[i]->clazz->constant_pool.count;
              j++, constant++) {
             free(constant->info);
         }
         free(class_heap.class_info[i]->clazz->constant_pool.constant_pool);
 
         for (method_t *method = class_heap.class_info[i]->clazz->methods;
-             method->name; method++)
+             method->name; method++) {
             free(method->code.code);
+        }
         free(class_heap.class_info[i]->clazz->methods);
 
         free(class_heap.class_info[i]->clazz);

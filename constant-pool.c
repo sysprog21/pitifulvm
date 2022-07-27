@@ -28,7 +28,7 @@ u4 read_u4(FILE *class_file)
  */
 const_pool_info *get_constant(constant_pool_t *constant_pool, u2 index)
 {
-    assert(0 < index && index <= constant_pool->constant_pool_count &&
+    assert(0 < index && index <= constant_pool->count &&
            "Invalid constant pool index");
     /* Convert 1-indexed index to 0-indexed index */
     return &constant_pool->constant_pool[index - 1];
@@ -52,14 +52,13 @@ constant_pool_t get_constant_pool(FILE *class_file)
 {
     constant_pool_t cp = {
         /* Constant pool count includes unused constant at index 0 */
-        .constant_pool_count = read_u2(class_file) - 1,
-        .constant_pool =
-            malloc(sizeof(const_pool_info) * cp.constant_pool_count),
+        .count = read_u2(class_file) - 1,
+        .constant_pool = malloc(sizeof(const_pool_info) * cp.count),
     };
     assert(cp.constant_pool && "Failed to allocate constant pool");
 
     const_pool_info *constant = cp.constant_pool;
-    for (u2 i = 0; i < cp.constant_pool_count; i++, constant++) {
+    for (u2 i = 0; i < cp.count; i++, constant++) {
         constant->tag = read_u1(class_file);
         switch (constant->tag) {
         case CONSTANT_Utf8: {

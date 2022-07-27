@@ -47,7 +47,7 @@ typedef struct {
 } const_pool_info;
 
 typedef struct {
-    u2 constant_pool_count;
+    u2 count;
     const_pool_info *constant_pool;
 } constant_pool_t;
 
