@@ -44,3 +44,4 @@ void *pop_ref(stack_frame_t *stack);
 void pop_to_local(stack_frame_t *stack, local_variable_t *locals);
 size_t get_type_size(stack_entry_type_t type);
 int64_t stack_to_int(value_t *entry, size_t size);
+stack_entry_t top(stack_frame_t *stack);

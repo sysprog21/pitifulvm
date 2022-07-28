@@ -45,7 +45,9 @@ TESTS = \
 	Recursion \
 	Long \
 	Caller \
-	Constructor
+	Constructor \
+	Field \
+	Static
 	
 check: $(addprefix tests/,$(TESTS:=-result.out))
 

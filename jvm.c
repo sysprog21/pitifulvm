@@ -94,6 +94,9 @@ typedef enum {
     i_areturn = 0xb0,
     i_return = 0xb1,
     i_getstatic = 0xb2,
+    i_putstatic = 0xb3,
+    i_getfield = 0xb4,
+    i_putfield = 0xb5,
     i_invokevirtual = 0xb6,
     i_invokespecial = 0xb7,
     i_invokestatic = 0xb8,
@@ -783,10 +786,124 @@ stack_entry_t *execute(method_t *method,
             break;
 
         /* Get static field from class */
-        case i_getstatic:
-            /* FIXME: unimplemented */
+        case i_getstatic: {
+            uint8_t param1 = code_buf[pc + 1], param2 = code_buf[pc + 2];
+            uint16_t index = ((param1 << 8) | param2);
+
+            char *field_name, *field_descriptor, *class_name;
+            class_name = find_field_info_from_index(index, clazz, &field_name,
+                                                    &field_descriptor);
+
+            /* skip java.lang.System in order to support java print
+             * method */
+            if (!strcmp(class_name, "java/lang/System")) {
+                pc += 3;
+                break;
+            }
+
+            class_file_t *target_class =
+                find_or_add_class_to_heap(class_name, prefix);
+            field_t *field =
+                find_field(field_name, field_descriptor, target_class);
+
+            switch (field_descriptor[0]) {
+            case 'B':
+                /* signed byte */
+                push_byte(op_stack, field->static_var->value.char_value);
+                break;
+            case 'C':
+                /* FIXME: complete Unicode handling */
+                /* unicode character code */
+                push_short(op_stack, field->static_var->value.short_value);
+                break;
+            case 'I':
+                /* integer */
+                push_int(op_stack, field->static_var->value.int_value);
+                break;
+            case 'J':
+                /* long integer */
+                push_long(op_stack, field->static_var->value.long_value);
+                break;
+            case 'S':
+                /* signed short */
+                push_short(op_stack, field->static_var->value.short_value);
+                break;
+            case 'Z':
+                /* true or false */
+                push_byte(op_stack, field->static_var->value.char_value);
+                break;
+            case 'L':
+                /* an instance of class */
+                push_ref(op_stack, field->static_var->value.ptr_value);
+                break;
+            default:
+                fprintf(stderr, "Unknown field descriptor %c\n",
+                        field_descriptor[0]);
+                exit(1);
+            }
             pc += 3;
             break;
+        }
+
+        /* Put static field to class */
+        case i_putstatic: {
+            uint8_t param1 = code_buf[pc + 1], param2 = code_buf[pc + 2];
+            uint16_t index = ((param1 << 8) | param2);
+
+            char *field_name, *field_descriptor, *class_name;
+            class_name = find_field_info_from_index(index, clazz, &field_name,
+                                                    &field_descriptor);
+
+            class_file_t *target_class =
+                find_or_add_class_to_heap(class_name, prefix);
+            field_t *field =
+                find_field(field_name, field_descriptor, target_class);
+
+            switch (field_descriptor[0]) {
+            case 'B':
+                /* signed byte */
+                field->static_var->value.char_value = (u1) pop_int(op_stack);
+                field->static_var->type = VAR_BYTE;
+                break;
+            case 'C':
+                /* FIXME: complete Unicode handling */
+                /* unicode character code */
+                field->static_var->value.char_value = (u2) pop_int(op_stack);
+                field->static_var->type = VAR_SHORT;
+                break;
+            case 'I':
+                /* integer */
+                field->static_var->value.int_value = (u4) pop_int(op_stack);
+                field->static_var->type = VAR_INT;
+                break;
+            case 'J':
+                /* long integer */
+                field->static_var->value.long_value = (u8) pop_int(op_stack);
+                field->static_var->type = VAR_LONG;
+                break;
+            case 'S':
+                /* signed short */
+                field->static_var->value.short_value = (u2) pop_int(op_stack);
+                field->static_var->type = VAR_SHORT;
+                break;
+            case 'Z':
+                /* true or false */
+                field->static_var->value.char_value = (u1) pop_int(op_stack);
+                field->static_var->type = VAR_BYTE;
+                break;
+            case 'L':
+                /* an instance of class ClassName */
+                field->static_var->value.ptr_value = pop_ref(op_stack);
+                field->static_var->type = VAR_PTR;
+                break;
+            default:
+                fprintf(stderr, "Unknown field descriptor %c\n",
+                        field_descriptor[0]);
+                exit(1);
+            }
+            pc += 3;
+            break;
+        }
 
         /* Invoke instance method; dispatch based on class */
         case i_invokevirtual:
@@ -819,6 +936,91 @@ stack_entry_t *execute(method_t *method,
             sipush(op_stack, pc, code_buf);
             pc += 3;
             break;
+
+        /* Fetch field from object */
+        case i_getfield: {
+            uint8_t param1 = code_buf[pc + 1], param2 = code_buf[pc + 2];
+            uint16_t index = ((param1 << 8) | param2);
+
+            object_t *obj = pop_ref(op_stack);
+            char *field_name, *field_descriptor;
+            find_field_info_from_index(index, clazz, &field_name,
+                                       &field_descriptor);
+
+            variable_t *addr = find_field_addr(obj, field_name);
+
+            switch (field_descriptor[0]) {
+            case 'I':
+                push_int(op_stack, addr->value.int_value);
+                break;
+            case 'J':
+                push_long(op_stack, addr->value.long_value);
+                break;
+            case 'L':
+                push_ref(op_stack, addr->value.ptr_value);
+                break;
+            default:
+                assert(0 && "Only support integer and reference field");
+                break;
+            }
+            pc += 3;
+            break;
+        }
+
+        /* Set field in object */
+        case i_putfield: {
+            uint8_t param1 = code_buf[pc + 1], param2 = code_buf[pc + 2];
+            uint16_t index = ((param1 << 8) | param2);
+            int64_t value = 0;
+            void *addr = NULL;
+
+            /* get prepared value from the stack */
+            stack_entry_t element = top(op_stack);
+            switch (element.type) {
+            /* integer */
+            case STACK_ENTRY_INT:
+            case STACK_ENTRY_SHORT:
+            case STACK_ENTRY_BYTE:
+            case STACK_ENTRY_LONG:
+                value = pop_int(op_stack);
+                break;
+            case STACK_ENTRY_REF:
+                addr = pop_ref(op_stack);
+                break;
+            default:
+                assert(0 && "Only support integer and reference field");
+                break;
+            }
+
+            object_t *obj = pop_ref(op_stack);
+
+            /* update value into object's field */
+            char *field_name, *field_descriptor;
+            find_field_info_from_index(index, clazz, &field_name,
+                                       &field_descriptor);
+
+            variable_t *var = find_field_addr(obj, field_name);
+
+            switch (field_descriptor[0]) {
+            case 'I':
+                var->value.int_value = (int32_t) value;
+                var->type = VAR_INT;
+                break;
+            case 'J':
+                var->value.long_value = value;
+                var->type = VAR_LONG;
+                break;
+            case 'L':
+                var->value.ptr_value = addr;
+                var->type = VAR_PTR;
+                break;
+            default:
+                assert(0 && "Only support integer and reference field");
+                break;
+            }
+            pc += 3;
+            break;
+        }
 
         /* create new object */
         case i_new: {
