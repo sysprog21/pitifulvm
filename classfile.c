@@ -18,8 +18,6 @@ class_info_t get_class_info(FILE *class_file)
     };
     u2 interfaces_count = read_u2(class_file);
     assert(!interfaces_count && "This VM does not support interfaces.");
-    u2 fields_count = read_u2(class_file);
-    assert(!fields_count && "This VM does not support fields.");
     return info;
 }
 
@@ -92,6 +90,75 @@ char *find_method_info_from_index(uint16_t idx,
     return (char *) class_name->info;
 }
 
+CONSTANT_FieldOrMethodRef_info *get_fieldref(constant_pool_t *cp, u2 idx)
+{
+    const_pool_info *field = get_constant(cp, idx);
+    assert(field->tag == CONSTANT_FieldRef && "Expected a FieldRef");
+    return (CONSTANT_FieldOrMethodRef_info *) field->info;
+}
+
+/**
+ * Find the field info corresponding to the given constant pool index.
+ *
+ * @param index the constant pool index of the Methodref to call
+ * @param clazz the parsed class file
+ * @param name_info the pointer that will contain method name on return
+ * @param descriptor_info the pointer that will contain method infomation on
+ * return
+ * @return the class name which has this field
+ */
+char *find_field_info_from_index(uint16_t idx,
+                                 class_file_t *clazz,
+                                 char **name_info,
+                                 char **descriptor_info)
+{
+    CONSTANT_FieldOrMethodRef_info *field_ref =
+        get_fieldref(&clazz->constant_pool, idx);
+    const_pool_info *name_and_type =
+        get_constant(&clazz->constant_pool, field_ref->name_and_type_index);
+    assert(name_and_type->tag == CONSTANT_NameAndType &&
+           "Expected a NameAndType");
+    const_pool_info *name = get_constant(
+        &clazz->constant_pool,
+        ((CONSTANT_NameAndType_info *) name_and_type->info)->name_index);
+    assert(name->tag == CONSTANT_Utf8 && "Expected a UTF8");
+    const_pool_info *descriptor = get_constant(
+        &clazz->constant_pool,
+        ((CONSTANT_NameAndType_info *) name_and_type->info)->descriptor_index);
+    assert(descriptor->tag == CONSTANT_Utf8 && "Expected a UTF8");
+    CONSTANT_Class_info *class_info =
+        get_class_name(&clazz->constant_pool, field_ref->class_index);
+    const_pool_info *class_name =
+        get_constant(&clazz->constant_pool, class_info->string_index);
+    *name_info = (char *) name->info;
+    *descriptor_info = (char *) descriptor->info;
+
+    return (char *) class_name->info;
+}
+
+char *find_class_name_from_index(uint16_t idx, class_file_t *clazz)
+{
+    CONSTANT_Class_info *class = get_class_name(&clazz->constant_pool, idx);
+
+    const_pool_info *name =
+        get_constant(&clazz->constant_pool, class->string_index);
+    assert(name->tag == CONSTANT_Utf8 && "Expected a UTF8");
+    return (char *) name->info;
+}
+
+void read_field_attributes(FILE *class_file, field_info *info)
+{
+    for (u2 i = 0; i < info->attributes_count; i++) {
+        attribute_info ainfo = {
+            .attribute_name_index = read_u2(class_file),
+            .attribute_length = read_u4(class_file),
+        };
+        long attribute_end = ftell(class_file) + ainfo.attribute_length;
+        /* Skip all the attribute */
+        fseek(class_file, attribute_end, SEEK_SET);
+    }
+}
+
 void read_method_attributes(FILE *class_file,
                             method_info *info,
                             code_t *code,
@@ -128,6 +195,37 @@ void read_method_attributes(FILE *class_file,
 }
 
 #define IS_STATIC 0x0008
+
+field_t *get_fields(FILE *class_file, constant_pool_t *cp, class_file_t *clazz)
+{
+    u2 fields_count = read_u2(class_file);
+    clazz->fields_count = fields_count;
+    field_t *fields = malloc(sizeof(*fields) * (fields_count + 1));
+    assert(fields && "Failed to allocate methods");
+
+    field_t *field = fields;
+    for (u2 i = 0; i < fields_count; i++, field++) {
+        field_info info = {
+            .access_flags = read_u2(class_file),
+            .name_index = read_u2(class_file),
+            .descriptor_index = read_u2(class_file),
+            .attributes_count = read_u2(class_file),
+        };
+
+        const_pool_info *name = get_constant(cp, info.name_index);
+        assert(name->tag == CONSTANT_Utf8 && "Expected a UTF8");
+        field->name = (char *) name->info;
+        const_pool_info *descriptor = get_constant(cp, info.descriptor_index);
+        assert(descriptor->tag == CONSTANT_Utf8 && "Expected a UTF8");
+        field->descriptor = (char *) descriptor->info;
+
+        read_field_attributes(class_file, &info);
+    }
+
+    /* Mark end of array with NULL name */
+    field->name = NULL;
+    return fields;
+}
 
 method_t *get_methods(FILE *class_file, constant_pool_t *cp)
 {
@@ -183,6 +281,9 @@ class_file_t get_class(FILE *class_file)
 
     /* Read information about the class that was compiled. */
     get_class_info(class_file);
+
+    /* Read the list of fields */
+    clazz.fields = get_fields(class_file, &clazz.constant_pool, &clazz);
 
     /* Read the list of static methods */
     clazz.methods = get_methods(class_file, &clazz.constant_pool);

@@ -36,8 +36,15 @@ void push_long(stack_frame_t *stack, int64_t value)
     stack->size++;
 }
 
+void push_ref(stack_frame_t *stack, void *addr)
+{
+    stack->store[stack->size].entry.ptr_value = addr;
+    stack->store[stack->size].type = STACK_ENTRY_REF;
+    stack->size++;
+}
+
 /* pop top of stack value and convert to 64 bits integer */
-int64_t stack_to_int(stack_value_t *entry, size_t size)
+int64_t stack_to_int(value_t *entry, size_t size)
 {
     switch (size) {
     /* int8_t */
@@ -64,6 +71,11 @@ int64_t pop_int(stack_frame_t *stack)
     int64_t value = stack_to_int(&stack->store[stack->size - 1].entry, size);
     stack->size--;
     return value;
+}
+
+void *pop_ref(stack_frame_t *stack)
+{
+    return stack->store[--stack->size].entry.ptr_value;
 }
 
 void pop_to_local(stack_frame_t *stack, local_variable_t *locals)

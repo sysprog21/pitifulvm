@@ -7,7 +7,8 @@ OBJS = \
 	stack.o \
 	constant-pool.o \
 	classfile.o \
-	class-heap.o
+	class-heap.o \
+	object-heap.o
 
 deps := $(OBJS:%.o=.%.o.d)
 
@@ -43,8 +44,9 @@ TESTS = \
 	Primes \
 	Recursion \
 	Long \
-	Caller
-
+	Caller \
+	Constructor
+	
 check: $(addprefix tests/,$(TESTS:=-result.out))
 
 ifneq (, $(shell which valgrind))
