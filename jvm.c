@@ -2,6 +2,7 @@
  */
 
 #include <assert.h>
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -173,7 +174,7 @@ static inline void invokevirtual(stack_frame_t *op_stack)
     int64_t op = pop_int(op_stack);
 
     /* FIXME: the implement is not correct. */
-    printf("%ld\n", op);
+    printf("%" PRId64 "\n", op);
 }
 
 static inline void iconst(stack_frame_t *op_stack, uint8_t current)
