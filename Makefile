@@ -59,8 +59,8 @@ tests/%.class: tests/%.java
 tests/%-expected.out: tests/%.class
 	$(Q)$(JAVA) -cp tests $(*F) > $@
 
-tests/%-actual.out: tests/%.class jvm
-	$(Q)./jvm $< > $@
+tests/%-actual.out: tests/%.class $(BIN)
+	$(Q)./$(BIN) $< > $@
 
 tests/%-result.out: tests/%-expected.out tests/%-actual.out
 	$(Q)diff -u $^ | tee $@; \
@@ -69,8 +69,8 @@ tests/%-result.out: tests/%-expected.out tests/%-actual.out
 	if [ -s $@ ]; then $(PRINTF) FAILED $$name. Aborting.; false; \
 	else $(call pass); fi
 
-tests/%-leak.out: tests/%.class jvm
-	$(Q)valgrind ./jvm $< > $@ 2>&1; \
+tests/%-leak.out: tests/%.class $(BIN)
+	$(Q)valgrind ./$(BIN) $< > $@ 2>&1; \
 	name='test $(@F:-leak.out=)'; \
 	$(PRINTF) "Running $$name..."; \
 	if grep -q 'All heap blocks were freed' $@; \
@@ -78,12 +78,12 @@ tests/%-leak.out: tests/%.class jvm
 	else $(PRINTF) FAILED $$name. Aborting.; false; fi
 
 clean:
-	$(Q)$(RM) $(OBJS) $(deps) *~ jvm tests/*.out tests/*.class $(REDIR)
+	$(Q)$(RM) $(OBJS) $(deps) *~ $(BIN) tests/*.out tests/*.class $(REDIR)
 
 .PRECIOUS: %.o tests/%.class tests/%-expected.out tests/%-actual.out tests/%-result.out tests/%-leak.out
 
 indent:
-	clang-format -i *.c *.h 
-	cloc jvm.c
+	clang-format -i *.[ch]
+	cloc *.[ch]
 
 -include $(deps)
