@@ -27,8 +27,16 @@ class_info_t get_class_info(FILE *class_file)
  */
 uint16_t get_number_of_parameters(method_t *method)
 {
-    /* Type descriptors have the length ( + #params + ) + return type */
-    return strlen(method->descriptor) - 3;
+    uint16_t num_param = 0;
+    for (size_t i = 1; method->descriptor[i] != ')'; ++i) {
+        /* if type is reference, skip class name */
+        if (method->descriptor[i] == 'L') {
+            while (method->descriptor[++i] != ';')
+                ;
+        }
+        num_param++;
+    }
+    return num_param;
 }
 
 /**
