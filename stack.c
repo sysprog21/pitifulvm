@@ -86,11 +86,13 @@ void *pop_ref(stack_frame_t *stack)
 void pop_to_local(stack_frame_t *stack, local_variable_t *locals)
 {
     stack_entry_type_t type = stack->store[stack->size - 1].type;
-    /* convert to integer */
+    /* push value from stack to locals */
     if (type >= STACK_ENTRY_BYTE && type <= STACK_ENTRY_LONG) {
-        int64_t value = pop_int(stack);
-        locals->entry.long_value = value;
+        locals->entry.long_value = pop_int(stack);
         locals->type = STACK_ENTRY_LONG;
+    } else if (type == STACK_ENTRY_REF) {
+        locals->entry.ptr_value = pop_ref(stack);
+        locals->type = STACK_ENTRY_REF;
     }
 }
 

@@ -27,8 +27,16 @@ class_info_t get_class_info(FILE *class_file)
  */
 uint16_t get_number_of_parameters(method_t *method)
 {
-    /* Type descriptors have the length ( + #params + ) + return type */
-    return strlen(method->descriptor) - 3;
+    uint16_t num_param = 0;
+    for (size_t i = 1; method->descriptor[i] != ')'; ++i) {
+        /* if type is reference, skip class name */
+        if (method->descriptor[i] == 'L') {
+            while (method->descriptor[++i] != ';')
+                ;
+        }
+        num_param++;
+    }
+    return num_param;
 }
 
 /**
@@ -270,13 +278,6 @@ method_t *get_methods(FILE *class_file, constant_pool_t *cp)
         const_pool_info *descriptor = get_constant(cp, info.descriptor_index);
         assert(descriptor->tag == CONSTANT_Utf8 && "Expected a UTF8");
         method->descriptor = (char *) descriptor->info;
-
-        /* FIXME: this VM can only execute static methods, while every class
-         * has a constructor method <init>
-         */
-        if (strcmp(method->name, "<init>"))
-            assert((info.access_flags & IS_STATIC) &&
-                   "Only static methods are supported by this VM.");
 
         read_method_attributes(class_file, &info, &method->code, cp);
     }

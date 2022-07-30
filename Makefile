@@ -47,7 +47,8 @@ TESTS = \
 	Caller \
 	Constructor \
 	Field \
-	Static
+	Static \
+	Invokevirtual
 	
 check: $(addprefix tests/,$(TESTS:=-result.out))
 
