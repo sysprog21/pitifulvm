@@ -1,11 +1,13 @@
 public class Static {
-    static int x, y, z;
+    static int x = 1, y = 2, z = 3;
+    static StaticA obj;
+    static {
+        StaticA.x = 3;
+        System.out.println(2);
+        System.out.println(StaticA.x);
+    }
     public static void main(String[] args) {
-        x = 3;
-        y = 4;
-        z = 5;
-        StaticA.x = 1;
-        StaticB.x = Static.x + StaticA.x;
+        StaticB.x = 4;
         System.out.println(Static.x);
         System.out.println(Static.y);
         System.out.println(Static.z);
