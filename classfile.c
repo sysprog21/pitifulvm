@@ -9,13 +9,13 @@ class_header_t get_class_header(FILE *class_file)
     };
 }
 
-class_info_t get_class_info(FILE *class_file)
+class_info_t *get_class_info(FILE *class_file)
 {
-    class_info_t info = {
-        .access_flags = read_u2(class_file),
-        .this_class = read_u2(class_file),
-        .super_class = read_u2(class_file),
-    };
+    class_info_t *info = malloc(sizeof(class_info_t));
+    info->access_flags = read_u2(class_file);
+    info->this_class = read_u2(class_file);
+    info->super_class = read_u2(class_file);
+
     u2 interfaces_count = read_u2(class_file);
     assert(!interfaces_count && "This VM does not support interfaces.");
     return info;
@@ -303,12 +303,15 @@ class_file_t get_class(FILE *class_file)
     class_file_t clazz = {.constant_pool = get_constant_pool(class_file)};
 
     /* Read information about the class that was compiled. */
-    get_class_info(class_file);
+    clazz.info = get_class_info(class_file);
 
     /* Read the list of fields */
     clazz.fields = get_fields(class_file, &clazz.constant_pool, &clazz);
 
     /* Read the list of static methods */
     clazz.methods = get_methods(class_file, &clazz.constant_pool);
+
+    clazz.initialized = false;
+
     return clazz;
 }

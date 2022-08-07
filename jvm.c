@@ -263,12 +263,28 @@ stack_entry_t *execute(method_t *method,
 
             /* the method to be called */
             char *method_name, *method_descriptor, *class_name;
-            class_name = find_method_info_from_index(index, clazz, &method_name,
-                                                     &method_descriptor);
+            method_t *own_method = NULL;
+            class_file_t *target_class = NULL;
 
-            class_file_t *target_class;
-            if (find_or_add_class_to_heap(class_name, prefix, &target_class)) {
-                /* Call static initialization */
+            /* recursively find method from child to parent */
+            while (!own_method) {
+                if (!target_class)
+                    class_name = find_method_info_from_index(
+                        index, clazz, &method_name, &method_descriptor);
+                else
+                    class_name = find_class_name_from_index(
+                        target_class->info->super_class, target_class);
+                find_or_add_class_to_heap(class_name, prefix, &target_class);
+                assert(target_class &&
+                       "Failed to load class in i_invokestatic");
+                own_method =
+                    find_method(method_name, method_descriptor, target_class);
+            }
+
+            /* call static initialization. Only the class that contains this
+             * method should do static initialization */
+            if (!target_class->initialized) {
+                target_class->initialized = true;
                 method_t *method = find_method("<clinit>", "()V", target_class);
                 if (method) {
                     local_variable_t own_locals[method->code.max_locals];
@@ -279,10 +295,7 @@ stack_entry_t *execute(method_t *method,
                     free(exec_res);
                 }
             }
-            assert(target_class && "Failed to load class in invokestatic");
 
-            method_t *own_method =
-                find_method(method_name, method_descriptor, target_class);
             uint16_t num_params = get_number_of_parameters(own_method);
             local_variable_t own_locals[own_method->code.max_locals];
             for (int i = num_params - 1; i >= 0; i--)
@@ -794,9 +807,11 @@ stack_entry_t *execute(method_t *method,
             uint16_t index = ((param1 << 8) | param2);
 
             char *field_name, *field_descriptor, *class_name;
+            field_t *field = NULL;
+            class_file_t *target_class = NULL;
+
             class_name = find_field_info_from_index(index, clazz, &field_name,
                                                     &field_descriptor);
-
             /* skip java.lang.System in order to support java print
              * method */
             if (!strcmp(class_name, "java/lang/System")) {
@@ -804,9 +819,21 @@ stack_entry_t *execute(method_t *method,
                 break;
             }
 
-            class_file_t *target_class;
-            if (find_or_add_class_to_heap(class_name, prefix, &target_class)) {
-                /* Call static initialization */
+            while (!field) {
+                if (target_class)
+                    class_name = find_class_name_from_index(
+                        target_class->info->super_class, target_class);
+
+                find_or_add_class_to_heap(class_name, prefix, &target_class);
+                assert(target_class && "Failed to load class in i_getstatic");
+
+                field = find_field(field_name, field_descriptor, target_class);
+            }
+
+            /* call static initialization. Only the class that contains this
+             * field should do static initialization */
+            if (!target_class->initialized) {
+                target_class->initialized = true;
                 method_t *method = find_method("<clinit>", "()V", target_class);
                 if (method) {
                     local_variable_t own_locals[method->code.max_locals];
@@ -817,9 +844,6 @@ stack_entry_t *execute(method_t *method,
                     free(exec_res);
                 }
             }
-
-            field_t *field =
-                find_field(field_name, field_descriptor, target_class);
 
             switch (field_descriptor[0]) {
             case 'B':
@@ -866,12 +890,33 @@ stack_entry_t *execute(method_t *method,
             uint16_t index = ((param1 << 8) | param2);
 
             char *field_name, *field_descriptor, *class_name;
+            field_t *field = NULL;
+            class_file_t *target_class = NULL;
             class_name = find_field_info_from_index(index, clazz, &field_name,
                                                     &field_descriptor);
 
-            class_file_t *target_class;
-            if (find_or_add_class_to_heap(class_name, prefix, &target_class)) {
-                /* Call static initialization */
+            /* skip java.lang.System in order to support java print
+             * method */
+            if (!strcmp(class_name, "java/lang/System")) {
+                pc += 3;
+                break;
+            }
+
+            while (!field) {
+                if (target_class)
+                    class_name = find_class_name_from_index(
+                        target_class->info->super_class, target_class);
+
+                find_or_add_class_to_heap(class_name, prefix, &target_class);
+                assert(target_class && "Failed to load class in i_putstatic");
+
+                field = find_field(field_name, field_descriptor, target_class);
+            }
+
+            /* call static initialization. Only the class that contains this
+             * field should do static initialization */
+            if (!target_class->initialized) {
+                target_class->initialized = true;
                 method_t *method = find_method("<clinit>", "()V", target_class);
                 if (method) {
                     local_variable_t own_locals[method->code.max_locals];
@@ -882,8 +927,6 @@ stack_entry_t *execute(method_t *method,
                     free(exec_res);
                 }
             }
-            field_t *field =
-                find_field(field_name, field_descriptor, target_class);
 
             switch (field_descriptor[0]) {
             case 'B':
@@ -938,6 +981,9 @@ stack_entry_t *execute(method_t *method,
 
             /* the method to be called */
             char *method_name, *method_descriptor, *class_name;
+            class_file_t *target_class = NULL;
+            method_t *method = NULL;
+
             class_name = find_method_info_from_index(index, clazz, &method_name,
                                                      &method_descriptor);
 
@@ -964,9 +1010,22 @@ stack_entry_t *execute(method_t *method,
             }
 
             /* FIXME: consider method modifier */
-            class_file_t *target_class;
-            if (find_or_add_class_to_heap(class_name, prefix, &target_class)) {
-                /* Call static initialization */
+            /* recursively find method from child to parent */
+            while (!method) {
+                if (target_class)
+                    class_name = find_class_name_from_index(
+                        target_class->info->super_class, target_class);
+                find_or_add_class_to_heap(class_name, prefix, &target_class);
+                assert(target_class &&
+                       "Failed to load class in i_invokevirtual");
+                method =
+                    find_method(method_name, method_descriptor, target_class);
+            }
+
+            /* call static initialization. Only the class that contains this
+             * method should do static initialization */
+            if (!target_class->initialized) {
+                target_class->initialized = true;
                 method_t *method = find_method("<clinit>", "()V", target_class);
                 if (method) {
                     local_variable_t own_locals[method->code.max_locals];
@@ -977,8 +1036,7 @@ stack_entry_t *execute(method_t *method,
                     free(exec_res);
                 }
             }
-            method_t *method =
-                find_method(method_name, method_descriptor, target_class);
+
             uint16_t num_params = get_number_of_parameters(method);
             local_variable_t own_locals[method->code.max_locals];
             memset(own_locals, 0, sizeof(own_locals));
@@ -1138,8 +1196,26 @@ stack_entry_t *execute(method_t *method,
 
             char *class_name = find_class_name_from_index(index, clazz);
             class_file_t *target_class;
-            if (find_or_add_class_to_heap(class_name, prefix, &target_class)) {
-                /* Call static initialization */
+
+            /* FIXME: use linked list to prevent wasted space */
+            class_file_t **stack = malloc(sizeof(class_file_t *) * 100);
+            size_t count = 0;
+            while (true) {
+                find_or_add_class_to_heap(class_name, prefix, &target_class);
+                assert(target_class && "Failed to load class in i_new");
+                stack[count++] = target_class;
+                class_name = find_class_name_from_index(
+                    target_class->info->super_class, target_class);
+                if (!strcmp(class_name, "java/lang/Object"))
+                    break;
+            }
+
+            /* call static initialization */
+            while (count) {
+                target_class = stack[--count];
+                if (target_class->initialized)
+                    continue;
+                target_class->initialized = true;
                 method_t *method = find_method("<clinit>", "()V", target_class);
                 if (method) {
                     local_variable_t own_locals[method->code.max_locals];
@@ -1150,7 +1226,7 @@ stack_entry_t *execute(method_t *method,
                     free(exec_res);
                 }
             }
-            assert(target_class && "Failed to load class in new");
+            free(stack);
 
             object_t *object = create_object(target_class);
             push_ref(op_stack, object);
@@ -1178,8 +1254,12 @@ stack_entry_t *execute(method_t *method,
             }
 
             class_file_t *target_class;
-            if (find_or_add_class_to_heap(class_name, prefix, &target_class)) {
-                /* Call static initialization */
+            find_or_add_class_to_heap(class_name, prefix, &target_class);
+            assert(target_class && "Failed to load class in i_invokespecial");
+
+            /* call static initialization */
+            if (!target_class->initialized) {
+                target_class->initialized = true;
                 method_t *method = find_method("<clinit>", "()V", target_class);
                 if (method) {
                     local_variable_t own_locals[method->code.max_locals];
@@ -1190,7 +1270,6 @@ stack_entry_t *execute(method_t *method,
                     free(exec_res);
                 }
             }
-            assert(target_class && "Failed to load class in i_invokespecial");
 
             /* find constructor method from class */
             method_t *constructor =
@@ -1252,15 +1331,6 @@ int main(int argc, char *argv[])
         prefix = malloc((match - argv[1] + 2));
         strncpy(prefix, argv[1], match - argv[1] + 1);
         prefix[match - argv[1] + 1] = '\0';
-    }
-
-    method_t *method = find_method("<clinit>", "()V", clazz);
-    if (method) {
-        local_variable_t own_locals[method->code.max_locals];
-        stack_entry_t *exec_res = execute(method, own_locals, clazz);
-        assert(exec_res->type == STACK_ENTRY_NONE &&
-               "<clinit> must not return a value");
-        free(exec_res);
     }
 
     /* execute the main method if found */
