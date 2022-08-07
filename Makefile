@@ -49,7 +49,8 @@ TESTS = \
 	Field \
 	Static \
 	Invokevirtual \
-	Inherit
+	Inherit \
+	Initializer
 	
 check: $(addprefix tests/,$(TESTS:=-result.out))
 

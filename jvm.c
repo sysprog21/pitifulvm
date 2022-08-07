@@ -1196,8 +1196,26 @@ stack_entry_t *execute(method_t *method,
 
             char *class_name = find_class_name_from_index(index, clazz);
             class_file_t *target_class;
-            if (find_or_add_class_to_heap(class_name, prefix, &target_class)) {
-                /* Call static initialization */
+
+            /* FIXME: use linked list to prevent wasted space */
+            class_file_t **stack = malloc(sizeof(class_file_t *) * 100);
+            size_t count = 0;
+            while (true) {
+                find_or_add_class_to_heap(class_name, prefix, &target_class);
+                assert(target_class && "Failed to load class in i_new");
+                stack[count++] = target_class;
+                class_name = find_class_name_from_index(
+                    target_class->info->super_class, target_class);
+                if (!strcmp(class_name, "java/lang/Object"))
+                    break;
+            }
+
+            /* call static initialization */
+            while (count) {
+                target_class = stack[--count];
+                if (target_class->initialized)
+                    continue;
+                target_class->initialized = true;
                 method_t *method = find_method("<clinit>", "()V", target_class);
                 if (method) {
                     local_variable_t own_locals[method->code.max_locals];
@@ -1208,7 +1226,7 @@ stack_entry_t *execute(method_t *method,
                     free(exec_res);
                 }
             }
-            assert(target_class && "Failed to load class in new");
+            free(stack);
 
             object_t *object = create_object(target_class);
             push_ref(op_stack, object);
