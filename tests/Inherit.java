@@ -1,5 +1,6 @@
 public class Inherit {
     static int x = 1;
+    int y = 5;
 
     public static void static_call() {
         System.out.println(1);
@@ -26,6 +27,20 @@ public class Inherit {
         System.out.println(obj.x);
         System.out.println(objA.x);
         System.out.println(objB.x);
+
+        /* check fields */
+        System.out.println(obj.y);
+        System.out.println(objA.y);
+        System.out.println(objB.y);
+        obj.y = 2;
+        System.out.println(obj.y);
+        System.out.println(objA.y);
+        System.out.println(objB.y);
+        objA.y = 3;
+        objB.y = 5;
+        System.out.println(obj.y);
+        System.out.println(objA.y);
+        System.out.println(objB.y);
 
         /* check static methods inheritance (compiler will replace objects with classes) */
         obj.static_call();

@@ -12,6 +12,7 @@
 #include "class-heap.h"
 #include "classfile.h"
 #include "constant-pool.h"
+#include "list.h"
 #include "object-heap.h"
 #include "stack.h"
 
@@ -1114,7 +1115,11 @@ stack_entry_t *execute(method_t *method,
             find_field_info_from_index(index, clazz, &field_name,
                                        &field_descriptor);
 
-            variable_t *addr = find_field_addr(obj, field_name);
+            variable_t *addr = NULL;
+            while (!addr) {
+                addr = find_field_addr(obj, field_name);
+                obj = obj->parent;
+            }
 
             switch (field_descriptor[0]) {
             case 'I':
@@ -1166,7 +1171,11 @@ stack_entry_t *execute(method_t *method,
             find_field_info_from_index(index, clazz, &field_name,
                                        &field_descriptor);
 
-            variable_t *var = find_field_addr(obj, field_name);
+            variable_t *var = NULL;
+            while (!var) {
+                var = find_field_addr(obj, field_name);
+                obj = obj->parent;
+            }
 
             switch (field_descriptor[0]) {
             case 'I':
@@ -1197,22 +1206,20 @@ stack_entry_t *execute(method_t *method,
             char *class_name = find_class_name_from_index(index, clazz);
             class_file_t *target_class;
 
-            /* FIXME: use linked list to prevent wasted space */
-            class_file_t **stack = malloc(sizeof(class_file_t *) * 100);
-            size_t count = 0;
-            while (true) {
+            class_file_t *list = calloc(1, sizeof(class_file_t));
+            init_list(list);
+
+            while (strcmp(class_name, "java/lang/Object")) {
                 find_or_add_class_to_heap(class_name, prefix, &target_class);
                 assert(target_class && "Failed to load class in i_new");
-                stack[count++] = target_class;
+                list_add(target_class, list);
                 class_name = find_class_name_from_index(
                     target_class->info->super_class, target_class);
-                if (!strcmp(class_name, "java/lang/Object"))
-                    break;
             }
 
-            /* call static initialization */
-            while (count) {
-                target_class = stack[--count];
+            /* reversely call static initialization if class have not been
+             * initialized */
+            list_for_each (target_class, list) {
                 if (target_class->initialized)
                     continue;
                 target_class->initialized = true;
@@ -1226,10 +1233,11 @@ stack_entry_t *execute(method_t *method,
                     free(exec_res);
                 }
             }
-            free(stack);
 
-            object_t *object = create_object(target_class);
+            object_t *object = create_object(list);
             push_ref(op_stack, object);
+            list_del(list);
+            free(list);
 
             pc += 3;
             break;

@@ -1,11 +1,13 @@
 #pragma once
 
 #include "classfile.h"
+#include "list.h"
 
-typedef struct {
+typedef struct object {
     variable_t *value;
     class_file_t *class;
     size_t fields_count;
+    struct object *parent;
 } object_t;
 
 typedef struct {
