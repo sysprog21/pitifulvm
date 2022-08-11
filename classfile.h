@@ -54,13 +54,15 @@ typedef struct {
     variable_t *static_var; /* store static fields in the class */
 } field_t;
 
-typedef struct {
+typedef struct class_file {
     constant_pool_t constant_pool;
     class_info_t *info;
     method_t *methods;
     field_t *fields;
     u2 fields_count;
     bool initialized;
+    struct class_file *next;
+    struct class_file *prev;
 } class_file_t;
 
 typedef struct {
