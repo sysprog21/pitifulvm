@@ -578,6 +578,15 @@ stack_entry_t *execute(method_t *method,
         }
 
         /* Load object from local variable */
+        case i_aload: {
+            int32_t param = code_buf[pc + 1];
+            object_t *obj = locals[param].entry.ptr_value;
+
+            push_ref(op_stack, obj);
+            pc += 2;
+        } break;
+
+        /* Load object from local variable */
         case i_aload_0:
         case i_aload_1:
         case i_aload_2:
