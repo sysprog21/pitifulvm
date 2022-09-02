@@ -54,12 +54,26 @@ typedef struct {
     variable_t *static_var; /* store static fields in the class */
 } field_t;
 
+typedef struct {
+    u2 bootstrap_method_ref;
+    u2 num_bootstrap_arguments;
+    u2 *bootstrap_arguments;
+} bootmethods_t;
+
+typedef struct {
+    u2 attribute_name_index;
+    u4 attribute_length;
+    u2 num_bootstrap_methods;
+    bootmethods_t *bootstrap_methods;
+} bootmethods_attr_t;
+
 typedef struct class_file {
     constant_pool_t constant_pool;
     class_info_t *info;
     method_t *methods;
     field_t *fields;
     u2 fields_count;
+    bootmethods_attr_t *bootstrap;
     bool initialized;
     struct class_file *next;
     struct class_file *prev;
@@ -89,4 +103,7 @@ char *find_field_info_from_index(uint16_t idx,
                                  char **name_info,
                                  char **descriptor_info);
 void read_field_attributes(FILE *class_file, field_info *info);
+bootmethods_t *find_bootstrap_method(uint16_t idx, class_file_t *clazz);
+bootmethods_attr_t *read_bootstrap_attribute(FILE *class_file,
+                                             constant_pool_t *cp);
 field_t *get_fields(FILE *class_file, constant_pool_t *cp, class_file_t *clazz);

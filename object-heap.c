@@ -40,6 +40,25 @@ object_t *create_object(class_file_t *clazz)
     return new_obj;
 }
 
+char *create_string(class_file_t *clazz, char *src)
+{
+    size_t len = strlen(src);
+    char *dest = calloc((len + 1), sizeof(char));
+    strncpy(dest, src, len);
+
+    object_t *str_obj = malloc(sizeof(object_t));
+    str_obj->value = malloc(sizeof(variable_t));
+    str_obj->value->type = VAR_STR_PTR;
+    str_obj->value->value.ptr_value = dest;
+    str_obj->class = clazz;
+    str_obj->parent = NULL;
+    str_obj->fields_count = 1;
+
+    object_heap.objects[object_heap.length++] = str_obj;
+
+    return dest;
+}
+
 variable_t *find_field_addr(object_t *obj, char *name)
 {
     field_t *field = obj->class->fields;
@@ -57,6 +76,11 @@ void free_object_heap()
         /* free object and all its parent */
         for (object_t *cur = object_heap.objects[i], *next; cur; cur = next) {
             next = cur->parent;
+            if (cur->value) {
+                if (cur->value->type == VAR_STR_PTR) {
+                    free(cur->value->value.ptr_value);
+                }
+            }
             free(cur->value);
             free(cur);
         }

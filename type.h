@@ -13,7 +13,8 @@ typedef enum {
     VAR_SHORT = 2,
     VAR_INT = 3,
     VAR_LONG = 4,
-    VAR_PTR = 5, /* reference */
+    VAR_PTR = 5,    /* reference */
+    VAR_STR_PTR = 6 /* string reference */
 } variable_type_t;
 
 typedef union {

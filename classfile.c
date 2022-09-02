@@ -22,7 +22,7 @@ class_info_t *get_class_info(FILE *class_file)
 }
 
 /**
- * Get the number of integer parameters that a method takes.
+ * Get the number of parameters that a method takes.
  * Use the descriptor string of the method to determine its signature.
  */
 uint16_t get_number_of_parameters(method_t *method)
@@ -175,6 +175,15 @@ char *find_class_name_from_index(uint16_t idx, class_file_t *clazz)
     return (char *) name->info;
 }
 
+bootmethods_t *find_bootstrap_method(uint16_t idx, class_file_t *clazz)
+{
+    const_pool_info *info = get_constant(&clazz->constant_pool, idx);
+    assert(info->tag == CONSTANT_InvokeDynamic && "Expected a InvokeDynanmic");
+    return &clazz->bootstrap
+                ->bootstrap_methods[((CONSTANT_InvokeDynamic_info *) info->info)
+                                        ->bootstrap_method_attr_index];
+}
+
 void read_field_attributes(FILE *class_file, field_info *info)
 {
     for (u2 i = 0; i < info->attributes_count; i++) {
@@ -221,6 +230,54 @@ void read_method_attributes(FILE *class_file,
         fseek(class_file, attribute_end, SEEK_SET);
     }
     assert(found_code && "Missing method code");
+}
+
+bootmethods_attr_t *read_bootstrap_attribute(FILE *class_file,
+                                             constant_pool_t *cp)
+{
+    u2 attributes_count = read_u2(class_file);
+    for (u2 i = 0; i < attributes_count; i++) {
+        attribute_info ainfo = {
+            .attribute_name_index = read_u2(class_file),
+            .attribute_length = read_u4(class_file),
+        };
+        long attribute_end = ftell(class_file) + ainfo.attribute_length;
+        const_pool_info *type_constant =
+            get_constant(cp, ainfo.attribute_name_index);
+        assert(type_constant->tag == CONSTANT_Utf8 && "Expected a UTF8");
+        if (!strcmp((char *) type_constant->info, "BootstrapMethods")) {
+            bootmethods_attr_t *bootstrap = malloc(sizeof(*bootstrap));
+
+            bootstrap->num_bootstrap_methods = read_u2(class_file);
+            bootstrap->bootstrap_methods = malloc(
+                sizeof(bootmethods_t) * bootstrap->num_bootstrap_methods);
+
+            assert(bootstrap->bootstrap_methods &&
+                   "Failed to allocate bootstrap method");
+            for (int j = 0; j < bootstrap->num_bootstrap_methods; ++j) {
+                bootstrap->bootstrap_methods[j].bootstrap_method_ref =
+                    read_u2(class_file);
+                bootstrap->bootstrap_methods[j].num_bootstrap_arguments =
+                    read_u2(class_file);
+                bootstrap->bootstrap_methods[j].bootstrap_arguments = malloc(
+                    sizeof(u2) *
+                    bootstrap->bootstrap_methods[j].num_bootstrap_arguments);
+                assert(bootstrap->bootstrap_methods[j].bootstrap_arguments &&
+                       "Failed to allocate bootstrap argument");
+                for (int k = 0;
+                     k <
+                     bootstrap->bootstrap_methods[j].num_bootstrap_arguments;
+                     ++k) {
+                    bootstrap->bootstrap_methods[j].bootstrap_arguments[k] =
+                        read_u2(class_file);
+                }
+            }
+            return bootstrap;
+        }
+        /* Skip the rest of the attribute */
+        fseek(class_file, attribute_end, SEEK_SET);
+    }
+    return NULL;
 }
 
 #define IS_STATIC 0x0008
@@ -310,6 +367,10 @@ class_file_t get_class(FILE *class_file)
 
     /* Read the list of static methods */
     clazz.methods = get_methods(class_file, &clazz.constant_pool);
+
+    /* Read the list of attributes */
+    clazz.bootstrap =
+        read_bootstrap_attribute(class_file, &clazz.constant_pool);
 
     clazz.initialized = false;
 

@@ -101,6 +101,7 @@ typedef enum {
     i_invokevirtual = 0xb6,
     i_invokespecial = 0xb7,
     i_invokestatic = 0xb8,
+    i_invokedynamic = 0xba,
     i_new = 0xbb,
 } jvm_opcode_t;
 
@@ -501,11 +502,27 @@ stack_entry_t *execute(method_t *method,
              */
             int16_t param = code_buf[pc + 1];
 
-            /* get the constant */
-            uint8_t *info = get_constant(&constant_pool, param)->info;
-
-            /* need to check type */
-            push_int(op_stack, ((CONSTANT_Integer_info *) info)->bytes);
+            const_pool_info *info = get_constant(&constant_pool, param);
+            switch (info->tag) {
+            case CONSTANT_Integer: {
+                push_int(op_stack,
+                         ((CONSTANT_Integer_info *) info->info)->bytes);
+                break;
+            }
+            case CONSTANT_String: {
+                char *src =
+                    (char *) get_constant(
+                        &constant_pool,
+                        ((CONSTANT_String_info *) info->info)->string_index)
+                        ->info;
+                char *dest = create_string(clazz, src);
+                push_ref(op_stack, dest);
+                break;
+            }
+            default:
+                assert(0 && "ldc only support int and string");
+                break;
+            }
             pc += 2;
             break;
         }
@@ -559,6 +576,15 @@ stack_entry_t *execute(method_t *method,
             pc += 1;
             break;
         }
+
+        /* Load object from local variable */
+        case i_aload: {
+            int32_t param = code_buf[pc + 1];
+            object_t *obj = locals[param].entry.ptr_value;
+
+            push_ref(op_stack, obj);
+            pc += 2;
+        } break;
 
         /* Load object from local variable */
         case i_aload_0:
@@ -1002,6 +1028,12 @@ stack_entry_t *execute(method_t *method,
                     printf("%ld\n", op);
                     break;
                 }
+                /* string */
+                case STACK_ENTRY_REF: {
+                    void *op = pop_ref(op_stack);
+                    printf("%s\n", (char *) op);
+                    break;
+                }
                 default:
                     printf("print type (%d) is not supported\n", element.type);
                     break;
@@ -1302,6 +1334,115 @@ stack_entry_t *execute(method_t *method,
             free(exec_res);
 
             pc += 3;
+            break;
+        }
+
+        /* Invokes a dynamic method */
+        case i_invokedynamic: {
+            uint8_t param1 = code_buf[pc + 1], param2 = code_buf[pc + 2];
+            uint16_t index = ((param1 << 8) | param2);
+
+            bootmethods_t *bootstrap_method =
+                find_bootstrap_method(index, clazz);
+            CONSTANT_MethodHandle_info *handle = get_method_handle(
+                &clazz->constant_pool, bootstrap_method->bootstrap_method_ref);
+
+            char *method_name, *method_descriptor;
+            find_method_info_from_index(handle->reference_index, clazz,
+                                        &method_name, &method_descriptor);
+
+            if (strcmp(method_name, "makeConcatWithConstants"))
+                assert(0 && "Only support makeConcatWithConstants");
+
+            char *arg = NULL;
+            arg = get_string_utf(&clazz->constant_pool,
+                                 bootstrap_method->bootstrap_arguments[0]);
+
+            /* In the first argument string, there are three types of character
+             * \1 (Unicode point 0001): an ordinary argument.
+             * \2 (Unicode point 0002): a constant.
+             * Any other char value: a single character constant.
+             *
+             * \1 will be replaced by value in the stack
+             * \2 will be replaced by value in other bootstrap arguments
+             */
+            uint16_t num_params = 0;
+            uint16_t num_constant = 0;
+            char *iter = arg;
+            while (*iter != '\0') {
+                if (*iter == 1 || *iter == 2) {
+                    num_params++;
+                }
+                iter++;
+            }
+            num_constant = strlen(arg) - num_params;
+            char **recipe = calloc(sizeof(char *), num_params);
+            size_t max_len = 0;
+
+            iter = arg;
+            int curr = 0,
+                arg_num = bootstrap_method->num_bootstrap_arguments - 1;
+            while (*iter != '\0') {
+                if (*iter == 1) {
+                    stack_entry_t element = top(op_stack);
+                    switch (element.type) {
+                    /* integer */
+                    case STACK_ENTRY_INT:
+                    case STACK_ENTRY_SHORT:
+                    case STACK_ENTRY_BYTE:
+                    case STACK_ENTRY_LONG: {
+                        int64_t value = pop_int(op_stack);
+                        /* 20 is the maximal digits in 64 bits sign integer */
+                        char str[20];
+                        /* integer to string */
+                        snprintf(str, 20, "%ld", value);
+                        char *dest = create_string(clazz, str);
+                        recipe[curr] = dest;
+                        break;
+                    }
+                    /* string */
+                    case STACK_ENTRY_REF: {
+                        recipe[curr] = (char *) pop_ref(op_stack);
+                        break;
+                    }
+                    default: {
+                        printf("unknown stack top type (%d)\n", element.type);
+                        break;
+                    }
+                    }
+                    max_len += strlen(recipe[curr++]);
+                } else if (*iter == 2) {
+                    recipe[curr] = get_string_utf(
+                        &clazz->constant_pool,
+                        bootstrap_method->bootstrap_arguments[arg_num--]);
+                    max_len += strlen(recipe[curr++]);
+                }
+                iter++;
+            }
+
+            max_len += num_constant;
+            char *result = calloc(max_len + 1, sizeof(char));
+
+            iter = arg;
+            while (*iter != '\0') {
+                if (*iter == 1 || *iter == 2) {
+                    strcat(result, recipe[--num_params]);
+                } else {
+                    strncat(result, iter, 1);
+                }
+                iter++;
+            }
+            result[max_len] = '\0';
+
+            char *dest = create_string(clazz, result);
+            push_ref(op_stack, dest);
+            free(recipe);
+            free(result);
+
+            /* two bytes values indicate the class in constant pool and the next
+             * two bytes are always zero, program counter should plus five.
+             */
+            pc += 5;
             break;
         }
 
