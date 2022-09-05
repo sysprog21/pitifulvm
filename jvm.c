@@ -45,6 +45,12 @@ typedef enum {
     i_aload_1 = 0x2b,
     i_aload_2 = 0x2c,
     i_aload_3 = 0x2d,
+    i_iaload = 0x2e,
+    i_laload = 0x2f,
+    i_aaload = 0x32,
+    i_baload = 0x33,
+    i_caload = 0x34,
+    i_saload = 0x35,
     i_istore = 0x36,
     i_lstore = 0x37,
     i_astore = 0x3a,
@@ -60,6 +66,12 @@ typedef enum {
     i_astore_1 = 0x4c,
     i_astore_2 = 0x4d,
     i_astore_3 = 0x4e,
+    i_iastore = 0x4f,
+    i_lastore = 0x50,
+    i_aastore = 0x53,
+    i_bastore = 0x54,
+    i_castore = 0x55,
+    i_sastore = 0x56,
     i_pop = 0x57,
     i_dup = 0x59,
     i_iadd = 0x60,
@@ -103,6 +115,9 @@ typedef enum {
     i_invokestatic = 0xb8,
     i_invokedynamic = 0xba,
     i_new = 0xbb,
+    i_newarray = 0xbc,
+    i_anewarray = 0xbd,
+    i_multianewarray = 0xc5,
 } jvm_opcode_t;
 
 /* TODO: add -cp arg to achieve class path select */
@@ -557,6 +572,57 @@ stack_entry_t *execute(method_t *method,
             break;
         }
 
+        /* Load int from an array */
+        case i_iaload: {
+            int64_t idx = pop_int(op_stack);
+            int32_t *arr = pop_ref(op_stack);
+
+            push_int(op_stack, arr[idx]);
+            pc += 1;
+            break;
+        }
+
+        /* Load long from an array */
+        case i_laload: {
+            int64_t idx = pop_int(op_stack);
+            int64_t *arr = pop_ref(op_stack);
+
+            push_int(op_stack, arr[idx]);
+            pc += 1;
+            break;
+        }
+
+        /* Load reference from array */
+        case i_aaload: {
+            int64_t index = pop_int(op_stack);
+            void **addr = pop_ref(op_stack);
+
+            push_ref(op_stack, *(addr + index));
+            pc += 1;
+            break;
+        }
+
+        /* Load byte/char from an array */
+        case i_baload:
+        case i_caload: {
+            int64_t idx = pop_int(op_stack);
+            int8_t *arr = pop_ref(op_stack);
+
+            push_int(op_stack, arr[idx]);
+            pc += 1;
+            break;
+        }
+
+        /* Load short from an array */
+        case i_saload: {
+            int64_t idx = pop_int(op_stack);
+            int16_t *arr = pop_ref(op_stack);
+
+            push_int(op_stack, arr[idx]);
+            pc += 1;
+            break;
+        }
+
         /* FIXME: this implementation has some bugs.
          * In standard JVM, one stack entry only store four
          * bytes data, so in some method descriptor (e.g (JJ)V)
@@ -641,6 +707,62 @@ stack_entry_t *execute(method_t *method,
             locals[param].entry.ptr_value = pop_ref(op_stack);
             locals[param].type = STACK_ENTRY_REF;
             pc += 2;
+            break;
+        }
+
+        /* Store into int array */
+        case i_iastore: {
+            int32_t value = pop_int(op_stack);
+            int64_t idx = pop_int(op_stack);
+            int32_t *arr = pop_ref(op_stack);
+
+            arr[idx] = value;
+            pc += 1;
+            break;
+        }
+
+        /* Store into long array */
+        case i_lastore: {
+            int64_t value = pop_int(op_stack);
+            int64_t idx = pop_int(op_stack);
+            int64_t *arr = pop_ref(op_stack);
+
+            arr[idx] = value;
+            pc += 1;
+            break;
+        }
+
+        /* Store into reference array */
+        case i_aastore: {
+            void *value = pop_ref(op_stack);
+            int64_t idx = pop_int(op_stack);
+            void **arr = pop_ref(op_stack);
+
+            arr[idx] = value;
+            pc += 1;
+            break;
+        }
+
+        /* Store int byte/char array */
+        case i_bastore:
+        case i_castore: {
+            int64_t value = pop_int(op_stack);
+            int64_t idx = pop_int(op_stack);
+            int8_t *arr = pop_ref(op_stack);
+
+            arr[idx] = value;
+            pc += 1;
+            break;
+        }
+
+        /* Store into short array */
+        case i_sastore: {
+            int64_t value = pop_int(op_stack);
+            int64_t idx = pop_int(op_stack);
+            int16_t *arr = pop_ref(op_stack);
+
+            arr[idx] = value;
+            pc += 1;
             break;
         }
 
@@ -902,6 +1024,9 @@ stack_entry_t *execute(method_t *method,
                 /* an instance of class */
                 push_ref(op_stack, field->static_var->value.ptr_value);
                 break;
+            case '[':
+                push_ref(op_stack, field->static_var->value.ptr_value);
+                break;
             default:
                 fprintf(stderr, "Unknown field descriptor %c\n",
                         field_descriptor[0]);
@@ -992,6 +1117,10 @@ stack_entry_t *execute(method_t *method,
                 field->static_var->value.ptr_value = pop_ref(op_stack);
                 field->static_var->type = VAR_PTR;
                 break;
+            case '[':
+                field->static_var->value.ptr_value = pop_ref(op_stack);
+                field->static_var->type = VAR_ARRAY_PTR;
+                break;
             default:
                 fprintf(stderr, "Unknown field descriptor %c\n",
                         field_descriptor[0]);
@@ -1031,7 +1160,10 @@ stack_entry_t *execute(method_t *method,
                 /* string */
                 case STACK_ENTRY_REF: {
                     void *op = pop_ref(op_stack);
-                    printf("%s\n", (char *) op);
+                    if (!op)
+                        printf("null\n");
+                    else
+                        printf("%s\n", (char *) op);
                     break;
                 }
                 default:
@@ -1161,6 +1293,7 @@ stack_entry_t *execute(method_t *method,
                 push_long(op_stack, addr->value.long_value);
                 break;
             case 'L':
+            case '[':
                 push_ref(op_stack, addr->value.ptr_value);
                 break;
             default:
@@ -1221,6 +1354,10 @@ stack_entry_t *execute(method_t *method,
             case 'L':
                 var->value.ptr_value = addr;
                 var->type = VAR_PTR;
+                break;
+            case '[':
+                var->value.ptr_value = addr;
+                var->type = VAR_ARRAY_PTR;
                 break;
             default:
                 assert(0 && "Only support integer and reference field");
@@ -1443,6 +1580,124 @@ stack_entry_t *execute(method_t *method,
              * two bytes are always zero, program counter should plus five.
              */
             pc += 5;
+            break;
+        }
+
+        /* Create new array */
+        case i_newarray: {
+            uint8_t index = code_buf[pc + 1];
+
+            size_t element_size = 0;
+            switch (index) {
+            case T_BOOLEN:
+            case T_CHAR:
+            case T_BYTE:
+                element_size = sizeof(int8_t);
+                break;
+            case T_SHORT:
+                element_size = sizeof(int16_t);
+                break;
+            case T_INT:
+                element_size = sizeof(int32_t);
+                break;
+            case T_LONG:
+                element_size = sizeof(int64_t);
+                break;
+            case T_FLOAT:
+                element_size = sizeof(float);
+                break;
+            case T_DOUBLE:
+                element_size = sizeof(double);
+                break;
+            }
+
+            int count = pop_int(op_stack);
+            int *dimensions = malloc(sizeof(int));
+            dimensions[0] = count;
+            void *arr = create_array(clazz, 1, dimensions, element_size);
+
+            push_ref(op_stack, arr);
+            pc += 2;
+            break;
+        }
+
+        /* Create new array of reference */
+        case i_anewarray: {
+            uint8_t param1 = code_buf[pc + 1], param2 = code_buf[pc + 2];
+            uint16_t index = ((param1 << 8) | param2);
+
+            int count = pop_int(op_stack);
+            int *dimensions = malloc(sizeof(int));
+            class_file_t *target_class = NULL;
+
+            /* FIXME: if clazz is string, then it cannot be found in the class
+             * heap. */
+            char *class_name = find_class_name_from_index(index, clazz);
+            dimensions[0] = count;
+
+            find_or_add_class_to_heap(class_name, prefix, &target_class);
+            void *arr =
+                create_array(target_class, 1, dimensions, sizeof(void *));
+
+            push_ref(op_stack, arr);
+            pc += 3;
+            break;
+        }
+
+        /* Create new multidimensional array */
+        case i_multianewarray: {
+            uint8_t param1 = code_buf[pc + 1], param2 = code_buf[pc + 2];
+            uint16_t index = ((param1 << 8) | param2);
+            uint8_t dimension = code_buf[pc + 3];
+            size_t type_size = 0;
+
+            char *class_name = find_class_name_from_index(index, clazz);
+            char *last = strrchr(class_name, '[') + 1;
+
+            switch (*last) {
+            case 'B':
+            case 'C':
+            case 'Z':
+                type_size = sizeof(char);
+                break;
+            case 'S':
+                type_size = sizeof(short);
+                break;
+            case 'I':
+                type_size = sizeof(int);
+                break;
+            case 'J':
+                type_size = sizeof(long);
+                break;
+            case 'L': {
+                /* find class name.
+                 * -1 because the last character is ';' */
+                char *class_name = malloc(strlen(last + 1));
+                strncpy(class_name, last + 1, strlen(last + 1) - 1);
+                class_name[strlen(last + 1) - 1] = '\0';
+                class_file_t *target_class = NULL;
+
+                /* FIXME: if clazz is string, then it cannot be found in the
+                 * class heap. */
+                find_or_add_class_to_heap(class_name, prefix, &target_class);
+                free(class_name);
+
+                type_size = sizeof(void *);
+                break;
+            }
+            default:
+                fprintf(stderr, "Unknown array type %c\n", *last);
+                exit(1);
+                break;
+            }
+            int *dimensions = malloc(sizeof(int) * dimension);
+            for (int i = dimension - 1; i >= 0; --i) {
+                dimensions[i] = pop_int(op_stack);
+            }
+
+            void *arr = create_array(clazz, dimension, dimensions, type_size);
+            push_ref(op_stack, arr);
+            pc += 4;
             break;
         }
 

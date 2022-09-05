@@ -51,7 +51,8 @@ TESTS = \
 	Invokevirtual \
 	Inherit \
 	Initializer \
-	Strings
+	Strings \
+	Array
 	
 check: $(addprefix tests/,$(TESTS:=-result.out))
 
